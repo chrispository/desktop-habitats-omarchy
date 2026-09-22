@@ -1,4 +1,4 @@
-import { qualityName, frameRate } from '../../shared/render-policy.js';
+import { qualityName, frameRate, resolutionScale, framingAspect } from '../../shared/render-policy.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from "three";
@@ -23,11 +23,16 @@ let paused =
   document.documentElement.dataset.motion !== "host" &&
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 const query = new URLSearchParams(location.search);
+const BASE_FOV = 25.8, PORTRAIT_FOV = 12;
+const CAMERA = [0, 4.65, 20.5], TARGET = [0, 4.15, 0];
+const BASE_PITCH = Math.atan2(TARGET[1] - CAMERA[1], CAMERA[2] - TARGET[2]);
 const wallpaper = document.documentElement.dataset.motion === "host";
 let profile = query.get("quality") === "reference" ? "reference" : preferredQuality(query);
+const hostScale = resolutionScale(query.get("scale"));
+const framing = query.get("framing");
 if (query.get("still") === "1") paused = true;
 let onBattery = false;
-let settings = renderSettings({ profile, wallpaper, pixelRatio: devicePixelRatio });
+let settings = renderSettings({ profile, wallpaper, scale: hostScale, pixelRatio: devicePixelRatio });
 let requestedRate = wallpaper ? 0 : 60;
 let loop = null, applyPower = null, updateControls = () => {};
 window.habitatPause = (value) => { paused = Boolean(value); loop?.setPaused(paused); updateControls(); };
@@ -41,7 +46,7 @@ window.habitatPower = (battery) => {
   const next = Boolean(battery);
   if (next === onBattery) return;
   onBattery = next;
-  settings = renderSettings({ profile, wallpaper, pixelRatio: devicePixelRatio, onBattery });
+  settings = renderSettings({ profile, wallpaper, scale: hostScale, pixelRatio: devicePixelRatio, onBattery });
   applyPower?.();
   loop?.setRate(frameRate(profile, requestedRate, onBattery));
   updateControls();
@@ -78,9 +83,9 @@ async function start() {
   // A faint green-blue veil builds along the viewing ray, leaving the foreground clear
   // while the back planting loses a little contrast through the water.
   scene.fog = new THREE.FogExp2("#16312a", 0.034);
-  const camera = new THREE.PerspectiveCamera(25.8, 1420 / 740, 0.2, 65);
-  camera.position.set(0, 4.65, 20.5);
-  camera.lookAt(0, 4.15, 0);
+  const camera = new THREE.PerspectiveCamera(BASE_FOV, 1420 / 740, 0.2, 65);
+  camera.position.set(...CAMERA);
+  camera.lookAt(...TARGET);
 
   // Overhead lamp with a soft skylight-like fill; the back light passes through the
   // thin leaves and reads as their translucency.
@@ -178,7 +183,7 @@ async function start() {
   function resize() {
     const bounds = canvas.getBoundingClientRect();
     // DPR may change when a preview moves between monitors.
-    settings = renderSettings({ profile, wallpaper, pixelRatio: devicePixelRatio, onBattery });
+    settings = renderSettings({ profile, wallpaper, scale: hostScale, pixelRatio: devicePixelRatio, onBattery });
     const dimensions = framebufferSize(bounds.width, bounds.height, settings.resolution, maxDimension, settings.maxPixels);
     zeroSize = !dimensions;
     visibility();
@@ -191,6 +196,14 @@ async function start() {
       // Preserve the depth effect's screen-space radius as resolution changes.
       post.uniforms.aoRadiusScale.value = scale / settings.referenceResolution;
       camera.aspect = bounds.width / bounds.height;
+      // A narrow screen would show only a slice of the tank at the landscape field of
+      // view, so open it up to keep more of the planting in frame.
+      const shape = framingAspect(framing, camera.aspect);
+      camera.fov = BASE_FOV + (shape < 1.3 ? Math.min(PORTRAIT_FOV, (1.3 - shape) * 16) : 0);
+      // Tilt up by half the extra angle so the bottom edge stays on the same patch of
+      // sand as the wide view: the added height all goes to open water above the plants.
+      const pitch = BASE_PITCH + THREE.MathUtils.degToRad(camera.fov - BASE_FOV) / 2;
+      camera.lookAt(TARGET[0], CAMERA[1] + (CAMERA[2] - TARGET[2]) * Math.tan(pitch), TARGET[2]);
       camera.updateProjectionMatrix();
       particles.update(height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
       forceShadows = true;

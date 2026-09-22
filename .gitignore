@@ -2,3 +2,5 @@
 .claude/
 node_modules/
 /aquarium-shader-improved.zip
+/build/
+/linux/compile_commands.json

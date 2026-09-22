@@ -1,4 +1,4 @@
-import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale } from '../../shared/render-policy.js';
+import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale, resolutionScale, framingAspect } from '../../shared/render-policy.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from 'three';
@@ -18,6 +18,7 @@ const params=new URLSearchParams(location.search),isHost=document.documentElemen
 const capture=params.has('capture');
 if(capture)document.body.classList.add('clean','capture');
 let quality=preferredQuality(params);
+const hostScale=resolutionScale(params.get('scale')),framing=params.get('framing');
 let hostRate=isHost?0:60,onBattery=false,contextLost=false,disposed=false;
 let paused=capture||(!isHost&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 let changeRate=()=>{},changePower=()=>{},feed=()=>{};
@@ -43,7 +44,7 @@ async function start(){
   // low: what the lamp does not reach stays dark.
   scene.add(new THREE.HemisphereLight('#3c56c0','#4a4636',.42));
   const sun=new THREE.DirectionalLight('#ffdfba',4.3);sun.position.set(LAMP.x,LAMP.y,LAMP.z).multiplyScalar(LAMP_RANGE);sun.target.position.set(0,0,0);sun.castShadow=true;
-  sun.shadow.mapSize.set(1536,1536);Object.assign(sun.shadow.camera,{left:-12,right:12,top:10,bottom:-9,near:1,far:43});sun.shadow.bias=-.0007;sun.shadow.normalBias=.018;sun.shadow.radius=2;sun.shadow.intensity=.86;
+  sun.shadow.mapSize.setScalar(quality==='ultra'?3072:1536);Object.assign(sun.shadow.camera,{left:-12,right:12,top:10,bottom:-9,near:1,far:43});sun.shadow.bias=-.0007;sun.shadow.normalBias=.018;sun.shadow.radius=2;sun.shadow.intensity=.86;
   scene.add(sun,sun.target);
   const actinic=new THREE.DirectionalLight('#4f6dff',.78);actinic.position.set(3,12,-2);scene.add(actinic);
   const bounce=new THREE.DirectionalLight('#7f8fd0',.18);bounce.position.set(3,6,8);scene.add(bounce);
@@ -148,16 +149,17 @@ async function start(){
     zeroSize=!(width>0&&height>0);
     if(zeroSize){restart();return;}
     anemone.setQuality(quality);
-    ratio=renderScale(quality,devicePixelRatio,onBattery)*autoScale;
-    const {width:w,height:h}=framebufferSize(width,height,ratio,renderer.capabilities.maxTextureSize,preset.pixels);ratio=w/width;renderer.setSize(w,h,false);target.setSize(w,h);post.uniforms.size.value.set(w,h);post.uniforms.aoRadiusScale.value=h/972;
+    ratio=hostScale?hostScale*(devicePixelRatio||1):renderScale(quality,devicePixelRatio,onBattery)*autoScale;
+    const {width:w,height:h}=framebufferSize(width,height,ratio,renderer.capabilities.maxTextureSize,hostScale?Infinity:preset.pixels);ratio=w/width;renderer.setSize(w,h,false);target.setSize(w,h);post.uniforms.size.value.set(w,h);post.uniforms.aoRadiusScale.value=h/972;
     camera.aspect=width/height;
+    const shape=framingAspect(framing,camera.aspect);
     if(view==='wide'){
-      const focus=-3.1*Math.min(1,Math.max(0,(1.3-camera.aspect)/.65));
+      const focus=-3.1*Math.min(1,Math.max(0,(1.3-shape)/.65));
       camera.position.set(views.wide.position[0]+focus,views.wide.position[1],views.wide.position[2]);
       camera.lookAt(views.wide.target[0]+focus,views.wide.target[1],views.wide.target[2]);
     }
     // Keep the central host in portrait; wide screens get the two tank islands.
-    camera.fov=views[view].fov+(view==='wide'&&camera.aspect<1.3?Math.min(15,(1.3-camera.aspect)*22):0);
+    camera.fov=views[view].fov+(view==='wide'&&shape<1.3?Math.min(15,(1.3-shape)*22):0);
     camera.updateProjectionMatrix();syncPostCamera();particles.setPixelRatio(ratio);
     if(wasZeroSize)restart();
     if(draw&&!document.hidden)render();
