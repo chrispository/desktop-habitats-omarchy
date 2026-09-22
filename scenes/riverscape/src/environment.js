@@ -47,9 +47,9 @@ const MOSS_COLONIES = [
 // colonies, fern tufts and sediment are placed by hand, so move a stone's growth with it.
 export const ROCKS = [
   { x: 4.7, z: 0.35, rx: 1.7, ry: 1.5, rz: 1.15, lean: 0.15 },
-  { x: -4.7, z: -0.35, rx: 1.35, ry: 1.45, rz: 1.0, lean: -0.12 },
-  { x: 6.7, z: -0.85, rx: 1.05, ry: 0.82, rz: 1.0, lean: 0.1 },
-  { x: -6.05, z: 0.55, rx: 1.05, ry: 0.68, rz: 0.85, lean: -0.08 },
+  { x: -4.7, z: -0.35, rx: 1.35, ry: 1.45, rz: 1.0, lean: -0.12, caveB: true },
+  { x: 6.7, z: -0.85, rx: 1.05, ry: 0.82, rz: 1.0, lean: 0.1, caveB: true },
+  { x: -6.05, z: 0.55, rx: 1.05, ry: 0.68, rz: 0.85, lean: -0.08, caveB: true },
   { x: 3.25, z: 1.45, rx: 0.6, ry: 0.48, rz: 0.55, lean: 0.25, pale: true },
   { x: -3.05, z: 0.6, rx: 0.5, ry: 0.4, rz: 0.45, lean: -0.2 },
   { x: 0.55, z: -2.6, rx: 0.45, ry: 0.36, rz: 0.42, lean: 0.15 },
@@ -263,13 +263,18 @@ function mossLayer(material, film, turf) {
 
 // A young film of algae is olive and thin; established turf is dark green. The film on
 // sand is browner (diatoms) than on stone and wood.
-async function surface(loader, name, repeat, color, film, turf = "#0b1e08") {
-  const [map, normalMap] = await Promise.all([
-    loader.loadAsync(`assets/${name}_diff.jpg`),
-    loader.loadAsync(`assets/${name}_nor_gl.jpg`),
+async function surface(loader, name, repeat, color, film, turf = "#0b1e08", maps = null) {
+  const files = maps ?? {
+    color: `assets/${name}_diff.jpg`,
+    normal: `assets/${name}_nor_gl.jpg`,
+  };
+  const [map, normalMap, roughnessMap] = await Promise.all([
+    loader.loadAsync(files.color),
+    loader.loadAsync(files.normal),
+    files.roughness ? loader.loadAsync(files.roughness) : Promise.resolve(null),
   ]);
   map.colorSpace = THREE.SRGBColorSpace;
-  for (const texture of [map, normalMap]) {
+  for (const texture of [map, normalMap, roughnessMap].filter(Boolean)) {
     texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(...repeat);
     texture.anisotropy = 8;
@@ -278,6 +283,7 @@ async function surface(loader, name, repeat, color, film, turf = "#0b1e08") {
     new THREE.MeshStandardMaterial({
       map,
       normalMap,
+      roughnessMap,
       color,
       roughness: 0.92,
       normalScale: new THREE.Vector2(0.65, 0.65),
@@ -594,12 +600,26 @@ function plantFronds(scene, groups) {
 
 export async function createEnvironment(scene) {
   const loader = new THREE.TextureLoader();
-  const [rockMaterial, woodMaterial, sandMaterial] = await Promise.all([
-    surface(loader, "rock_boulder_dry", [1.8, 1.4], 0x62665d, "#2e4315"),
-    surface(loader, "rough_wood", [2.1, 1.4], 0xc3ad8e, "#334a16"),
+  const [rockMaterial, rockMaterialB, woodMaterial, sandMaterial] = await Promise.all([
+    surface(loader, "cave_rock", [1.8, 1.4], 0xffffff, "#2e4315", "#0b1e08", {
+      color: "assets/cave_rock_texture/Cave_Rock_ud1ledrlw_2K_BaseColor.jpg",
+      normal: "assets/cave_rock_texture/Cave_Rock_ud1ledrlw_2K_Normal.jpg",
+      roughness: "assets/cave_rock_texture/Cave_Rock_ud1ledrlw_2K_Roughness.jpg",
+    }),
+    surface(loader, "cave_rock_b", [1.8, 1.4], 0xffffff, "#2e4315", "#0b1e08", {
+      color: "assets/cave_rock_texture_b/Cave_Rock_tkhgcesg_2K_BaseColor.jpg",
+      normal: "assets/cave_rock_texture_b/Cave_Rock_tkhgcesg_2K_Normal.jpg",
+      roughness: "assets/cave_rock_texture_b/Cave_Rock_tkhgcesg_2K_Roughness.jpg",
+    }),
+    surface(loader, "bark", [2.1, 1.4], 0xffffff, "#334a16", "#0b1e08", {
+      color: "assets/bark_texture/wcrjfjecc_2K_Basecolor.jpg",
+      normal: "assets/bark_texture/wcrjfjecc_2K_Normal.jpg",
+      roughness: "assets/bark_texture/wcrjfjecc_2K_Roughness.jpg",
+    }),
     surface(loader, "sand_01", [10, 6], 0xf4e5c8, "#5a5a26", "#23401a"),
   ]);
   rockMaterial.normalScale.set(0.85, 0.85);
+  rockMaterialB.normalScale.set(0.85, 0.85);
   woodMaterial.roughness = 0.86;
   woodMaterial.normalScale.set(0.8, 0.8);
   sandMaterial.normalScale.set(0.32, 0.32);
@@ -684,7 +704,7 @@ export async function createEnvironment(scene) {
     const uv = geometry.attributes.uv;
     for (let k = 0; k < uv.count; k++)
       uv.setXY(k, uv.getX(k) * grain, uv.getY(k) * grain);
-    const mesh = new THREE.Mesh(geometry, r.pale ? pale : rockMaterial);
+    const mesh = new THREE.Mesh(geometry, r.pale ? pale : r.caveB ? rockMaterialB : rockMaterial);
     mesh.scale.set(r.rx, r.ry, r.rz);
     mesh.position.set(r.x, rockCenterY(r), r.z);
     // The lean is applied after the stone's turn, about the tank's front axis, so the
