@@ -99,15 +99,20 @@ export function foliageMaterial() {
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <normal_fragment_maps>",
       /* glsl */ `#include <normal_fragment_maps>
-      float rib = exp(-pow((leafUv.x-.5)*60.,2.))*.0015;
-      float veinHeight = pow(.5+.5*cos((leafUv.y-abs(leafUv.x-.5)*.32)*155.),16.)*.00025;
+      // Relief is faked from screen-space derivatives, which break down once a blade is
+      // narrower than a pixel: the rib then swings the normal wildly and catches the sun
+      // as a white speck. Rib and veins fade out with the micro detail on thin blades.
       float detailFade = 1.-smoothstep(.003,.012,max(fwidth(leafUv.x),fwidth(leafUv.y)));
+      float ribFade = 1.-smoothstep(.02,.06,fwidth(leafUv.x));
+      float rib = exp(-pow((leafUv.x-.5)*60.,2.))*.0015*ribFade;
+      float veinHeight = pow(.5+.5*cos((leafUv.y-abs(leafUv.x-.5)*.32)*155.),16.)*.00025*ribFade;
       float micro = sin(leafUv.x*230.)*sin(leafUv.y*310.)*.00003*detailFade;
       float surfaceHeight = rib + veinHeight + micro;
       vec3 dp1=dFdx(-vViewPosition),dp2=dFdy(-vViewPosition);
       vec3 r1=cross(dp2,normal),r2=cross(normal,dp1);
       float det=dot(dp1,r1);
-      normal=normalize(abs(det)*normal-sign(det)*(dFdx(surfaceHeight)*r1+dFdy(surfaceHeight)*r2));
+      vec3 bumped=abs(det)*normal-sign(det)*(dFdx(surfaceHeight)*r1+dFdy(surfaceHeight)*r2);
+      if (dot(bumped,bumped)>1e-20) normal=normalize(bumped);
     `,
     );
     waterLitShader(shader, {
@@ -119,7 +124,7 @@ export function foliageMaterial() {
       `,
     });
   };
-  material.customProgramCacheKey = () => "aquatic-leaves-v2";
+  material.customProgramCacheKey = () => "aquatic-leaves-v3";
   return material;
 }
 

@@ -6,7 +6,7 @@ export function createComposite(camera, settings) {
       uniform sampler2D beauty;uniform sampler2D depth;uniform vec2 size;uniform vec2 nearFar;uniform float aoRadiusScale;varying vec2 vUv;
       float distanceAt(vec2 p){float z=texture2D(depth,p).x;return nearFar.x*nearFar.y/(nearFar.y-z*(nearFar.y-nearFar.x));}
       void main(){
-        vec3 color=texture2D(beauty,vUv).rgb;float center=distanceAt(vUv);float occlusion=0.;
+        vec3 color=texture2D(beauty,vUv).rgb;if(any(isnan(color)))color=vec3(0.);float center=distanceAt(vUv);float occlusion=0.;
         for(int i=0;i<${settings.aoSamples};i++) {
           float a=float(i)*2.399963;float radius=2.5+float(i)*${(14.85 / (settings.aoSamples - 1)).toFixed(8)};
           float sampleDepth=distanceAt(vUv+vec2(cos(a),sin(a))*radius*aoRadiusScale/size);
