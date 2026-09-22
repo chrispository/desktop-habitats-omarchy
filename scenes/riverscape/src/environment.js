@@ -598,23 +598,26 @@ function plantFronds(scene, groups) {
   scene.add(fronds);
 }
 
-export async function createEnvironment(scene) {
+// `detail` picks the bark and rock maps: "4K" for ultra quality, "2K" otherwise. Each 4K
+// set sits in a "_4k" folder next to its 2K one.
+export async function createEnvironment(scene, { detail = "2K" } = {}) {
   const loader = new THREE.TextureLoader();
+  const size = detail === "4K" ? "4K" : "2K", folder = size === "4K" ? "_4k" : "";
   const [rockMaterial, rockMaterialB, woodMaterial, sandMaterial] = await Promise.all([
     surface(loader, "cave_rock", [1.8, 1.4], 0xffffff, "#2e4315", "#0b1e08", {
-      color: "assets/cave_rock_texture/Cave_Rock_ud1ledrlw_2K_BaseColor.jpg",
-      normal: "assets/cave_rock_texture/Cave_Rock_ud1ledrlw_2K_Normal.jpg",
-      roughness: "assets/cave_rock_texture/Cave_Rock_ud1ledrlw_2K_Roughness.jpg",
+      color: `assets/cave_rock_texture${folder}/Cave_Rock_ud1ledrlw_${size}_BaseColor.jpg`,
+      normal: `assets/cave_rock_texture${folder}/Cave_Rock_ud1ledrlw_${size}_Normal.jpg`,
+      roughness: `assets/cave_rock_texture${folder}/Cave_Rock_ud1ledrlw_${size}_Roughness.jpg`,
     }),
     surface(loader, "cave_rock_b", [1.8, 1.4], 0xffffff, "#2e4315", "#0b1e08", {
-      color: "assets/cave_rock_texture_b/Cave_Rock_tkhgcesg_2K_BaseColor.jpg",
-      normal: "assets/cave_rock_texture_b/Cave_Rock_tkhgcesg_2K_Normal.jpg",
-      roughness: "assets/cave_rock_texture_b/Cave_Rock_tkhgcesg_2K_Roughness.jpg",
+      color: `assets/cave_rock_texture_b${folder}/Cave_Rock_tkhgcesg_${size}_BaseColor.jpg`,
+      normal: `assets/cave_rock_texture_b${folder}/Cave_Rock_tkhgcesg_${size}_Normal.jpg`,
+      roughness: `assets/cave_rock_texture_b${folder}/Cave_Rock_tkhgcesg_${size}_Roughness.jpg`,
     }),
     surface(loader, "bark", [2.1, 1.4], 0xffffff, "#334a16", "#0b1e08", {
-      color: "assets/bark_texture/wcrjfjecc_2K_Basecolor.jpg",
-      normal: "assets/bark_texture/wcrjfjecc_2K_Normal.jpg",
-      roughness: "assets/bark_texture/wcrjfjecc_2K_Roughness.jpg",
+      color: `assets/bark_texture${folder}/wcrjfjecc_${size}_Basecolor.jpg`,
+      normal: `assets/bark_texture${folder}/wcrjfjecc_${size}_Normal.jpg`,
+      roughness: `assets/bark_texture${folder}/wcrjfjecc_${size}_Roughness.jpg`,
     }),
     surface(loader, "sand_01", [10, 6], 0xf4e5c8, "#5a5a26", "#23401a"),
   ]);

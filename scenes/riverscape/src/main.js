@@ -1,10 +1,13 @@
-import { qualityName, frameRate, resolutionScale, framingAspect } from '../../shared/render-policy.js';
+import {
+  qualityName, frameRate, resolutionScale, framingAspect, panPosition, panOffset, wideReach, fishCounts,
+  sweepSpeed, sweepPhase, sweepPan,
+} from '../../shared/render-policy.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from "three";
 import { createEnvironment, createParticles } from "./environment.js";
 import { createPlants } from "./plants.js";
-import { createFishSchool } from "./fish.js";
+import { COUNT, COUNT_RANGE, createFishSchool } from "./fish.js";
 import { createFood } from "./food.js";
 import { randomGenerator } from "./math.js";
 import { waterTime } from "./water.js";
@@ -30,6 +33,20 @@ const wallpaper = document.documentElement.dataset.motion === "host";
 let profile = query.get("quality") === "reference" ? "reference" : preferredQuality(query);
 const hostScale = resolutionScale(query.get("scale"));
 const framing = query.get("framing");
+let population = fishCounts(query.get("fish"), { tetras: COUNT }, { tetras: COUNT_RANGE });
+let restock = () => {};
+// New fish counts, "kind:count,...", applied to the swimming school.
+window.habitatFish = (value) => {
+  population = fishCounts(value, population, { tetras: COUNT_RANGE });
+  restock();
+};
+// A fixed pan, or null to sweep slowly from end to end at `sweep` speed.
+let pan = panPosition(query.get("pan"));
+let sweep = sweepSpeed(query.get("sweep")), sweepAt = 0;
+let reframe = () => {};
+// Slides a narrow screen's view along the tank; null sweeps it from end to end.
+window.habitatPan = (value) => { pan = panPosition(value); reframe(); };
+window.habitatSweep = (value) => { sweep = sweepSpeed(value); };
 if (query.get("still") === "1") paused = true;
 let onBattery = false;
 let settings = renderSettings({ profile, wallpaper, scale: hostScale, pixelRatio: devicePixelRatio });
@@ -158,7 +175,11 @@ async function start() {
   backboard.position.set(0, 7, -7.2);
   backboard.receiveShadow = true;
   scene.add(backboard);
-  const { obstacles, landmarks } = await createEnvironment(scene);
+  // Ultra gets the 4K bark and rock. A quality change in the wallpaper reloads the page;
+  // the browser preview's quality control keeps whatever textures it started with.
+  const { obstacles, landmarks } = await createEnvironment(scene, {
+    detail: profile === "ultra" ? "4K" : "2K",
+  });
   const plants = createPlants(scene, {
     ...settings, animatedShadows: profile !== "reference",
   });
@@ -168,7 +189,12 @@ async function start() {
     landmarks,
     thickets: plants.thickets,
     food,
+    count: population.tetras,
   });
+  restock = () => {
+    fish.setCount(population.tetras);
+    loop?.invalidate();
+  };
   const particles = createParticles(scene, { thickets: plants.thickets });
 
   const { target, post, postScene, postCamera } = createComposite(camera, settings);
@@ -179,6 +205,29 @@ async function start() {
   function visibility() {
     loop?.setHidden(document.hidden || contextLost || zeroSize);
     updateControls();
+  }
+  // How far the camera can slide either way at this screen's shape, and the height it
+  // looks at; fitCamera() sets both, placeCamera() slides along them each frame.
+  let travel = 0, lookY = TARGET[1];
+  function placeCamera() {
+    const x = travel * (pan === null ? sweepPan(sweepAt) : pan);
+    camera.position.x = CAMERA[0] + x;
+    camera.lookAt(TARGET[0] + x, lookY, TARGET[2]);
+  }
+  function fitCamera(height = target.height) {
+    // A narrow screen would show only a slice of the tank at the landscape field of
+    // view, so open it up to keep more of the planting in frame.
+    const shape = framingAspect(framing, camera.aspect);
+    camera.fov = BASE_FOV + (shape < 1.3 ? Math.min(PORTRAIT_FOV, (1.3 - shape) * 16) : 0);
+    // Tilt up by half the extra angle so the bottom edge stays on the same patch of
+    // sand as the wide view: the added height all goes to open water above the plants.
+    const pitch = BASE_PITCH + THREE.MathUtils.degToRad(camera.fov - BASE_FOV) / 2;
+    const distance = CAMERA[2] - TARGET[2];
+    lookY = CAMERA[1] + distance * Math.tan(pitch);
+    travel = panOffset(1, camera.fov, camera.aspect, distance, wideReach(BASE_FOV, distance));
+    placeCamera();
+    camera.updateProjectionMatrix();
+    particles.update(height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
   }
   function resize() {
     const bounds = canvas.getBoundingClientRect();
@@ -196,16 +245,7 @@ async function start() {
       // Preserve the depth effect's screen-space radius as resolution changes.
       post.uniforms.aoRadiusScale.value = scale / settings.referenceResolution;
       camera.aspect = bounds.width / bounds.height;
-      // A narrow screen would show only a slice of the tank at the landscape field of
-      // view, so open it up to keep more of the planting in frame.
-      const shape = framingAspect(framing, camera.aspect);
-      camera.fov = BASE_FOV + (shape < 1.3 ? Math.min(PORTRAIT_FOV, (1.3 - shape) * 16) : 0);
-      // Tilt up by half the extra angle so the bottom edge stays on the same patch of
-      // sand as the wide view: the added height all goes to open water above the plants.
-      const pitch = BASE_PITCH + THREE.MathUtils.degToRad(camera.fov - BASE_FOV) / 2;
-      camera.lookAt(TARGET[0], CAMERA[1] + (CAMERA[2] - TARGET[2]) * Math.tan(pitch), TARGET[2]);
-      camera.updateProjectionMatrix();
-      particles.update(height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2)));
+      fitCamera(height);
       forceShadows = true;
       loop?.invalidate();
     }
@@ -225,6 +265,11 @@ async function start() {
     location.reload();
   });
   applyPower = () => { forceShadows = true; resize(); };
+  reframe = () => {
+    fitCamera();
+    forceShadows = true;
+    loop?.invalidate();
+  };
   resize();
 
   // The pointer is a hand at the front glass. The fish read where it is and how fast it
@@ -317,6 +362,10 @@ async function start() {
     const total = Math.min(0.1, dt);
     const steps = Math.max(1, Math.round(total * 60));
     const step = total / steps;
+    if (pan === null && travel > 0) {
+      sweepAt = sweepPhase(sweepAt, total, sweep);
+      placeCamera();
+    }
     for (let i = 0; total > 0 && i < steps; i++) {
       time += step;
       waterTime.value = time;

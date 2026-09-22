@@ -1,4 +1,4 @@
-import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale, resolutionScale, framingAspect } from '../../shared/render-policy.js';
+import { QUALITY_PRESETS as presets, qualityName, frameRate, framebufferSize, renderScale, resolutionScale, framingAspect, panPosition, panOffset, wideReach, fishCounts, sweepSpeed, sweepPhase, sweepPan } from '../../shared/render-policy.js';
 import { installControls, reportSceneError, preferredQuality } from '../../shared/controls.js';
 import { createComposite } from './composite.js';
 import * as THREE from 'three';
@@ -8,7 +8,7 @@ import { createAnemone } from './anemone.js';
 import { createFishSchool } from './fish-model.js';
 import { createShrimp } from './shrimp.js';
 import { createParticles } from './particles.js';
-import { ReefSimulation, FIXED_STEP } from './simulation.js';
+import { ReefSimulation, FIXED_STEP, POPULATION, POPULATION_RANGE } from './simulation.js';
 import { views } from './views.js';
 import { createFrameLoop } from '../../shared/frame-loop.js';
 import { waterTime, LAMP, LAMP_RANGE } from './water.js';
@@ -19,6 +19,14 @@ const capture=params.has('capture');
 if(capture)document.body.classList.add('clean','capture');
 let quality=preferredQuality(params);
 const hostScale=resolutionScale(params.get('scale')),framing=params.get('framing');
+let population=fishCounts(params.get('fish'),{clownfish:POPULATION.clownfish,chromis:POPULATION.chromis,anthias:POPULATION.anthias},POPULATION_RANGE),restock=()=>{};
+// New fish counts, "kind:count,...", applied to the running tank.
+window.habitatFish=value=>{population=fishCounts(value,population,POPULATION_RANGE);restock();};
+// A fixed pan, or null to sweep slowly from end to end at `sweep` speed.
+let pan=panPosition(params.get('pan')),sweep=sweepSpeed(params.get('sweep')),sweepAt=0,reframe=()=>{};
+// Slides a narrow screen's view along the tank; null sweeps it from end to end.
+window.habitatPan=value=>{pan=panPosition(value);reframe();};
+window.habitatSweep=value=>{sweep=sweepSpeed(value);};
 let hostRate=isHost?0:60,onBattery=false,contextLost=false,disposed=false;
 let paused=capture||(!isHost&&matchMedia('(prefers-reduced-motion: reduce)').matches);
 let changeRate=()=>{},changePower=()=>{},feed=()=>{};
@@ -90,8 +98,9 @@ async function start(){
   // then fail the depth test without sampling the triplanar texture layers.
   const rockDepthMaterial=new THREE.MeshBasicMaterial({colorWrite:false});
   rockPrepass.add(new THREE.Mesh(rockSurface.geometry,rockDepthMaterial));
-  const simulation=new ReefSimulation();
+  const simulation=new ReefSimulation(undefined,population);
   const fishSchool=createFishSchool(scene,simulation);
+  restock=()=>{if(simulation.setPopulation(population)&&!document.hidden)render();};
   const shrimp=createShrimp(scene,simulation),particles=createParticles(scene,simulation,shadow);
   function sync(dt){
     waterTime.value=simulation.time;
@@ -126,6 +135,7 @@ async function start(){
     while(accumulator>=FIXED_STEP&&steps<6){simulation.step(FIXED_STEP,pointer);accumulator-=FIXED_STEP;steps++;}
     if(steps===6)accumulator=0;
     if(pointer){pointer.speed*=Math.exp(-elapsed*8);}
+    if(pan===null&&travel>0){sweepAt=sweepPhase(sweepAt,steps*FIXED_STEP,sweep);placeCamera();syncPostCamera();}
     sync(steps*FIXED_STEP);render();
     const cost=performance.now()-before;cpuEMA=cpuEMA?cpuEMA*.96+cost*.04:cost;
     // Conservative one-way downshift, never an oscillating up/down resolution loop.
@@ -143,6 +153,22 @@ async function start(){
   }
   changeRate=restart;
   changePower=()=>{resize();restart();};
+  // How far the wide view can slide either way at this screen's shape; fitCamera() sets
+  // it, placeCamera() slides along it each frame.
+  let travel=0;
+  function placeCamera(){
+    if(view!=='wide')return;
+    const {position:[x,y,z],target:[tx,ty,tz]}=views.wide,focus=travel*(pan===null?sweepPan(sweepAt):pan);
+    camera.position.set(x+focus,y,z);camera.lookAt(tx+focus,ty,tz);
+  }
+  function fitCamera(){
+    const shape=framingAspect(framing,camera.aspect);
+    // Open the view up on a narrow screen, so more of the reef fits.
+    camera.fov=views[view].fov+(view==='wide'&&shape<1.3?Math.min(15,(1.3-shape)*22):0);
+    const {position:[,,z],target:[,,tz],fov}=views.wide;
+    travel=panOffset(1,camera.fov,camera.aspect,z-tz,wideReach(fov,z-tz));
+    placeCamera();camera.updateProjectionMatrix();syncPostCamera();
+  }
   function resize(draw=true){
     const width=habitat.clientWidth,height=habitat.clientHeight,preset=presets[quality];
     const wasZeroSize=zeroSize;
@@ -152,19 +178,12 @@ async function start(){
     ratio=hostScale?hostScale*(devicePixelRatio||1):renderScale(quality,devicePixelRatio,onBattery)*autoScale;
     const {width:w,height:h}=framebufferSize(width,height,ratio,renderer.capabilities.maxTextureSize,hostScale?Infinity:preset.pixels);ratio=w/width;renderer.setSize(w,h,false);target.setSize(w,h);post.uniforms.size.value.set(w,h);post.uniforms.aoRadiusScale.value=h/972;
     camera.aspect=width/height;
-    const shape=framingAspect(framing,camera.aspect);
-    if(view==='wide'){
-      const focus=-3.1*Math.min(1,Math.max(0,(1.3-shape)/.65));
-      camera.position.set(views.wide.position[0]+focus,views.wide.position[1],views.wide.position[2]);
-      camera.lookAt(views.wide.target[0]+focus,views.wide.target[1],views.wide.target[2]);
-    }
-    // Keep the central host in portrait; wide screens get the two tank islands.
-    camera.fov=views[view].fov+(view==='wide'&&shape<1.3?Math.min(15,(1.3-shape)*22):0);
-    camera.updateProjectionMatrix();syncPostCamera();particles.setPixelRatio(ratio);
+    fitCamera();particles.setPixelRatio(ratio);
     if(wasZeroSize)restart();
     if(draw&&!document.hidden)render();
   }
   const observer=new ResizeObserver(()=>resize());observer.observe(habitat);
+  reframe=()=>{fitCamera();if(!document.hidden)render();};
   resize(false);
 
   let pointer=null,lastPointer=0;const point=new THREE.Vector3(),lastPoint=new THREE.Vector3(),ndc=new THREE.Vector2(),raycaster=new THREE.Raycaster();

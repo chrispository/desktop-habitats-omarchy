@@ -34,6 +34,7 @@
 #include <QWebEngineUrlSchemeHandler>
 #include <QWebEngineView>
 
+#include <cmath>
 #include <cstdio>
 #include <functional>
 #include <map>
@@ -78,6 +79,20 @@ static const char *defaultConfig = R"JSONC(// Desktop Habitats: live aquarium wa
   //   "portrait"  - the tall composition, even on a landscape screen
   "framing": "auto",
 
+  // Where a narrow (portrait) screen looks along the tank: "auto" sweeps slowly from one
+  // end to the other and back, or a number holds it from -1 (left end) through 0
+  // (middle) to 1 (right end).
+  "pan": "auto",
+  // How fast "auto" sweeps, 1 to 10: each step is a little faster. At 5 a round trip
+  // takes two minutes, at 9 thirty seconds.
+  "panSpeed": 5,
+
+  // How many of each fish, per tank. Fish join or leave the running tank.
+  "fish": {
+    "riverscape": { "tetras": 24 },                              // 1-48
+    "reefscape": { "clownfish": 3, "chromis": 9, "anthias": 7 }  // 0-4, 0-18, 0-14
+  },
+
   // Per-monitor overrides, by output name (run `hyprctl monitors` to see names).
   // Any setting above can go here; "enabled": false leaves a monitor alone.
   "monitors": {
@@ -95,8 +110,20 @@ struct ScreenSettings {
   QString resolution = "auto";
   int fps = 30;
   QString framing = "auto";
+  QString pan = "auto";
+  int panSpeed = 5;
+  /// Fish counts by tank, then by kind. The page clamps them to what each tank allows.
+  std::map<QString, std::map<QString, int>> fish;
 
-  /// Everything that needs a page reload to change; fps does not.
+  /// The counts for this screen's tank, as the page reads them: "kind:count,...".
+  QString fishQuery() const {
+    QStringList pairs;
+    if (auto found = fish.find(environment); found != fish.end())
+      for (const auto &[kind, count] : found->second) pairs << kind + ':' + QString::number(count);
+    return pairs.join(',');
+  }
+
+  /// Everything that needs a page reload to change; fps, pan and the fish do not.
   QString page() const { return environment + '|' + quality + '|' + resolution + '|' + framing; }
 };
 
@@ -150,6 +177,29 @@ static ScreenSettings apply(ScreenSettings base, const QJsonObject &object, cons
     const double scale = text.toDouble(&number);
     if (text == "auto" || text == "native" || (number && scale >= 0.25 && scale <= 2)) base.resolution = text;
     else say("%s: resolution must be \"auto\", \"native\" or a number from 0.25 to 2", qPrintable(where));
+  }
+  if (object.contains("pan")) {
+    const QJsonValue value = object["pan"];
+    if (value.isString() && value.toString().toLower() == "auto") base.pan = "auto";
+    else if (value.isDouble() && value.toDouble() >= -1 && value.toDouble() <= 1)
+      base.pan = QString::number(value.toDouble());
+    else say("%s: pan must be \"auto\" or a number from -1 to 1", qPrintable(where));
+  }
+  if (object.contains("panSpeed")) {
+    const double speed = object["panSpeed"].toDouble(-1);
+    if (speed >= 1 && speed <= 10 && speed == std::floor(speed)) base.panSpeed = int(speed);
+    else say("%s: panSpeed must be a whole number from 1 to 10", qPrintable(where));
+  }
+  // Merged a kind at a time, so a monitor can change one count and keep the rest.
+  const QJsonObject tanks = object["fish"].toObject();
+  for (auto tank = tanks.begin(); tank != tanks.end(); ++tank) {
+    const QJsonObject kinds = tank.value().toObject();
+    for (auto kind = kinds.begin(); kind != kinds.end(); ++kind) {
+      if (kind.value().isDouble() && kind.value().toDouble() >= 0)
+        base.fish[tank.key()][kind.key()] = qRound(kind.value().toDouble());
+      else say("%s: fish.%s.%s must be a count", qPrintable(where), qPrintable(tank.key()),
+               qPrintable(kind.key()));
+    }
   }
   if (object.contains("fps")) {
     const int fps = object["fps"].toInt(0);
@@ -288,7 +338,12 @@ public:
 
     connect(page(), &QWebEnginePage::loadFinished, this, [this](bool ok) {
       if (!ok) say("[%s] the scene did not load", qPrintable(name()));
-      else sendRate();
+      else {
+        sendRate();
+        sendPan();
+        sendPanSpeed();
+        sendFish();
+      }
     });
 
     QUrl url(QString("%1://%2/scenes/%3/wallpaper.html").arg(sceneScheme, sceneHost, settings.environment));
@@ -296,6 +351,7 @@ public:
     query.addQueryItem("quality", settings.quality);
     if (settings.resolution != "auto") query.addQueryItem("scale", settings.resolution);
     query.addQueryItem("framing", settings.framing);
+    if (const QString fish = settings.fishQuery(); !fish.isEmpty()) query.addQueryItem("fish", fish);
     url.setQuery(query);
     load(url);
 
@@ -316,9 +372,10 @@ public:
     }
     resize(screen->size());
     show();
-    say("[%s] %s, %s quality, %s resolution, %d fps, %s framing", qPrintable(name()),
+    say("[%s] %s, %s quality, %s resolution, %d fps, %s framing, %s pan", qPrintable(name()),
         qPrintable(settings.environment), qPrintable(settings.quality),
-        qPrintable(settings.resolution), settings.fps, qPrintable(settings.framing));
+        qPrintable(settings.resolution), settings.fps, qPrintable(settings.framing),
+        qPrintable(settings.pan));
   }
 
   QString name() const { return screen->name(); }
@@ -327,6 +384,22 @@ public:
   void setFps(int fps) {
     settings.fps = fps;
     sendRate();
+  }
+
+  void setPan(const QString &pan) {
+    settings.pan = pan;
+    sendPan();
+  }
+
+  void setPanSpeed(int speed) {
+    settings.panSpeed = speed;
+    sendPanSpeed();
+  }
+
+  void setFish(const std::map<QString, std::map<QString, int>> &fish) {
+    settings.fish = fish;
+    say("[%s] fish %s", qPrintable(name()), qPrintable(settings.fishQuery()));
+    sendFish();
   }
 
   void probe() {
@@ -344,6 +417,21 @@ public:
 private:
   void sendRate() {
     page()->runJavaScript(QString("typeof habitatRate === 'function' && habitatRate(%1)").arg(settings.fps));
+  }
+
+  void sendFish() {
+    const QString fish = settings.fishQuery();
+    if (fish.isEmpty()) return;
+    page()->runJavaScript(QString("typeof habitatFish === 'function' && habitatFish('%1')").arg(fish));
+  }
+
+  void sendPanSpeed() {
+    page()->runJavaScript(QString("typeof habitatSweep === 'function' && habitatSweep(%1)").arg(settings.panSpeed));
+  }
+
+  void sendPan() {
+    const QString value = settings.pan == "auto" ? "null" : settings.pan;
+    page()->runJavaScript(QString("typeof habitatPan === 'function' && habitatPan(%1)").arg(value));
   }
 
   QScreen *screen;
@@ -403,6 +491,9 @@ private:
         continue;
       }
       if (wanted.fps != surface->current().fps) surface->setFps(wanted.fps);
+      if (wanted.pan != surface->current().pan) surface->setPan(wanted.pan);
+      if (wanted.panSpeed != surface->current().panSpeed) surface->setPanSpeed(wanted.panSpeed);
+      if (wanted.fishQuery() != surface->current().fishQuery()) surface->setFish(wanted.fish);
       ++it;
     }
     for (auto &[name, screen] : screens) {
@@ -437,11 +528,15 @@ int main(int argc, char **argv) {
   QWebEngineUrlScheme scheme(sceneScheme);
   scheme.setSyntax(QWebEngineUrlScheme::Syntax::Host);
   scheme.setFlags(QWebEngineUrlScheme::SecureScheme | QWebEngineUrlScheme::LocalScheme |
-                  QWebEngineUrlScheme::LocalAccessAllowed | QWebEngineUrlScheme::CorsEnabled);
+                  QWebEngineUrlScheme::LocalAccessAllowed | QWebEngineUrlScheme::CorsEnabled |
+                  QWebEngineUrlScheme::FetchApiAllowed);
   QWebEngineUrlScheme::registerScheme(scheme);
 
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
   QApplication app(argc, argv);
+  // Every screen can be switched off in the settings; the host has to outlive that and
+  // keep watching the file, or a screen could never be switched back on.
+  app.setQuitOnLastWindowClosed(false);
   QApplication::setApplicationName("desktop-habitats");
 
   const QString configHome = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
@@ -457,6 +552,7 @@ int main(int argc, char **argv) {
   options.addOption({"resolution", "Override the resolution.", "value"});
   options.addOption({"fps", "Override the frame rate.", "fps"});
   options.addOption({"framing", "Override the framing.", "name"});
+  options.addOption({"pan", "Override the pan: auto, or -1 to 1.", "value"});
   options.addOption({"probe", "Log each page's state every N seconds.", "seconds", "0"});
   options.addOption({"snapshot", "Save a PNG of each screen into this folder after --snapshot-after.", "folder"});
   options.addOption({"snapshot-after", "Seconds to wait before the snapshot.", "seconds", "12"});
@@ -483,6 +579,11 @@ int main(int argc, char **argv) {
   if (options.isSet("resolution")) overrides["resolution"] = options.value("resolution");
   if (options.isSet("fps")) overrides["fps"] = options.value("fps").toInt();
   if (options.isSet("framing")) overrides["framing"] = options.value("framing");
+  if (options.isSet("pan")) {
+    bool number = false;
+    const double pan = options.value("pan").toDouble(&number);
+    overrides["pan"] = number ? QJsonValue(pan) : QJsonValue(options.value("pan"));
+  }
 
   // No storage name makes the profile off the record: nothing is kept between runs.
   auto *profile = new QWebEngineProfile(&app);

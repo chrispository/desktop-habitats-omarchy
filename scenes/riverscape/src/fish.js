@@ -10,6 +10,8 @@ import {
 } from "./fish-anatomy.js";
 
 export const COUNT = 24;
+// The fewest and most a host may ask for.
+export const COUNT_RANGE = [1, 48];
 // The whole water column the fish may use. The floor is the sand, tracked separately.
 export const BOUNDS = {
   minX: -8.3,
@@ -408,18 +410,21 @@ function rotateAboutY(v, angle) {
 
 export function createFishSchool(
   scene,
-  { obstacles = [], landmarks = [], thickets = [], food = null } = {},
+  { obstacles = [], landmarks = [], thickets = [], food = null, count = COUNT } = {},
 ) {
   const random = randomGenerator(583137);
   const range = (min, max) => min + random() * (max - min);
   const exponential = (mean) => -mean * Math.log(1 - random());
   const geometry = makeAnatomy();
+  // Room for the most fish a host may ask for, so the school can grow without a rebuild;
+  // only the first `fish.length` instances are drawn.
+  const capacity = COUNT_RANGE[1];
   const swimAttribute = new THREE.InstancedBufferAttribute(
-    new Float32Array(COUNT * 4),
+    new Float32Array(capacity * 4),
     4,
   );
   const finPhaseAttribute = new THREE.InstancedBufferAttribute(
-    new Float32Array(COUNT), 1,
+    new Float32Array(capacity), 1,
   );
   swimAttribute.setUsage(THREE.DynamicDrawUsage);
   finPhaseAttribute.setUsage(THREE.DynamicDrawUsage);
@@ -434,8 +439,8 @@ export function createFishSchool(
   applySwimming(skinMaterial);
   applySwimming(finMaterial);
   applySwimming(depthMaterial, false);
-  const bodies = new THREE.InstancedMesh(geometry.body, skinMaterial, COUNT);
-  const membranes = new THREE.InstancedMesh(geometry.fins, finMaterial, COUNT);
+  const bodies = new THREE.InstancedMesh(geometry.body, skinMaterial, capacity);
+  const membranes = new THREE.InstancedMesh(geometry.fins, finMaterial, capacity);
   bodies.name = "Silver-blue freshwater fish";
   membranes.name = "Attached translucent fish fins";
   bodies.castShadow = true;
@@ -468,25 +473,8 @@ export function createFishSchool(
   let startled = 0;
   let escapes = 0;
   const initialPositions = [];
-  const fish = Array.from({ length: COUNT }, (_, id) => {
-    const band = id % 6;
-    const position = new THREE.Vector3();
-    do {
-      position.set(
-        -5.7 + band * 2.18 + range(-0.45, 0.45),
-        range(2.55, 5.75),
-        range(0.42, 2.7),
-      );
-    } while (
-      initialPositions.some((other) => other.distanceToSquared(position) < 0.55)
-    );
-    initialPositions.push(position);
-    // Most of the shoal already faces into the filter return.
-    const heading = new THREE.Vector3(
-      random() < 0.72 ? -1 : 1,
-      range(-0.045, 0.045),
-      range(-0.16, 0.16),
-    ).normalize();
+  // A fish's own state, from where it starts and which way it faces.
+  function makeFish(id, position, heading) {
     return {
       id,
       position,
@@ -543,6 +531,27 @@ export function createFishSchool(
       recruiter: null,
       recruitAt: 0,
     };
+  }
+  const fish = Array.from({ length: Math.min(count, capacity) }, (_, id) => {
+    const band = id % 6;
+    const position = new THREE.Vector3();
+    do {
+      position.set(
+        -5.7 + band * 2.18 + range(-0.45, 0.45),
+        range(2.55, 5.75),
+        range(0.42, 2.7),
+      );
+    } while (
+      initialPositions.some((other) => other.distanceToSquared(position) < 0.55)
+    );
+    initialPositions.push(position);
+    // Most of the shoal already faces into the filter return.
+    const heading = new THREE.Vector3(
+      random() < 0.72 ? -1 : 1,
+      range(-0.045, 0.045),
+      range(-0.16, 0.16),
+    ).normalize();
+    return makeFish(id, position, heading);
   });
   const delta = new THREE.Vector3();
   const target = new THREE.Vector3();
@@ -1660,11 +1669,40 @@ export function createFishSchool(
     finPhaseAttribute.needsUpdate = true;
   }
 
+  function showCount() {
+    bodies.count = membranes.count = fish.length;
+  }
+
+  // Grows or shrinks the school while it swims. Leavers go from the end of the list, so
+  // the ids stay the instance slots 0..n-1; newcomers swim in at one side of the tank.
+  function setCount(next) {
+    const wanted = THREE.MathUtils.clamp(Math.round(next), COUNT_RANGE[0], capacity);
+    while (fish.length > wanted) {
+      const gone = fish.pop();
+      for (const f of fish) if (f.recruiter === gone) f.recruiter = null;
+    }
+    while (fish.length < wanted) {
+      const side = random() < 0.5 ? -1 : 1;
+      const position = new THREE.Vector3(
+        side * (BOUNDS.maxX - 0.4),
+        range(2.6, 5.6),
+        range(0.4, 2.6),
+      );
+      const heading = new THREE.Vector3(-side, 0, range(-0.1, 0.1)).normalize();
+      const f = makeFish(fish.length, position, heading);
+      fish.push(f);
+      travel(f, target.set(-side * range(1, 5), position.y, position.z));
+    }
+    showCount();
+  }
+
+  showCount();
   for (const f of fish) if (f.id % 4 !== 0) leave(f);
   update(0, 0, null);
   return {
     update,
     fish,
+    setCount,
     getTelemetry() {
       const states = { hover: 0, travel: 0, settle: 0, inspect: 0, feed: 0, escape: 0 };
       let twitching = 0,
@@ -1680,10 +1718,10 @@ export function createFishSchool(
         maximumSpeed = Math.max(maximumSpeed, speed);
       }
       return {
-        count: COUNT,
+        count: fish.length,
         states,
         twitching,
-        averageSpeed: totalSpeed / COUNT,
+        averageSpeed: totalSpeed / fish.length,
         maximumSpeed,
         pointerResponses: startled,
         escapes,

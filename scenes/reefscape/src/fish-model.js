@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { underwater } from './water.js';
 import { merge } from './geometry.js';
+import { POPULATION_RANGE } from './simulation.js';
 
 const V=(x=0,y=0,z=0)=>new THREE.Vector3(x,y,z);
 const n=x=>Number(x).toFixed(5);
@@ -430,21 +431,34 @@ function fishMaterial(kind) {
  */
 export function createFishSchool(scene,simulation){
   const groups=[];
-  for(const kind of ['clown','chromis','anthias']){
-    const fish=simulation.fish.filter(f=>f.kind===kind),geometry=makeFishGeometry(kind);
-    const data=new Float32Array(fish.length*4),attribute=new THREE.InstancedBufferAttribute(data,4).setUsage(THREE.DynamicDrawUsage);
-    const gait=new Float32Array(fish.length*4),gaitAttribute=new THREE.InstancedBufferAttribute(gait,4).setUsage(THREE.DynamicDrawUsage);
+  for(const [name,kind] of [['clownfish','clown'],['chromis','chromis'],['anthias','anthias']]){
+    // Room for the most of this kind a host may ask for; only the live fish are drawn.
+    const capacity=POPULATION_RANGE[name][1],geometry=makeFishGeometry(kind);
+    const data=new Float32Array(capacity*4),attribute=new THREE.InstancedBufferAttribute(data,4).setUsage(THREE.DynamicDrawUsage);
+    const gait=new Float32Array(capacity*4),gaitAttribute=new THREE.InstancedBufferAttribute(gait,4).setUsage(THREE.DynamicDrawUsage);
     geometry.setAttribute('aFishTrim',attribute);geometry.setAttribute('aFishGait',gaitAttribute);
-    const mesh=new THREE.InstancedMesh(geometry,fishMaterial(kind),fish.length);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(mesh); // tiny fixed population, shader-deformed bounds
-    // Trim z shades each animal a little differently — for the clownfish it instead
-    // carries relative size, because percula's black borders broaden with age and the
-    // biggest fish on an anemone is the blackest. Trim w marks the sexed-up individual:
-    // the terminal male anthias, and the chromis holding the nest.
-    const largest=Math.max(...fish.map(f=>f.size));
-    groups.push({fish,data,attribute,gait,gaitAttribute,mesh,trim:fish.map((f,i)=>[kind==='clown'?f.size/largest:(i*.6180339887+.31)%1,(kind==='anthias'||kind==='chromis')&&f.rank===0?1:0])});
+    const mesh=new THREE.InstancedMesh(geometry,fishMaterial(kind),capacity);mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);scene.add(mesh); // tiny population, shader-deformed bounds
+    groups.push({kind,fish:[],data,attribute,gait,gaitAttribute,mesh,trim:[]});
   }
+  let version=-1;
+  // Who is in each group, redone whenever the population changes.
+  function regroup(){
+    version=simulation.version;
+    for(const group of groups){
+      const fish=simulation.fish.filter(f=>f.kind===group.kind),clown=group.kind==='clown';
+      // Trim z shades each animal a little differently — for the clownfish it instead
+      // carries relative size, because percula's black borders broaden with age and the
+      // biggest fish on an anemone is the blackest. Trim w marks the sexed-up individual:
+      // the terminal male anthias, and the chromis holding the nest.
+      const largest=Math.max(...fish.map(f=>f.size));
+      group.fish=fish;group.mesh.count=fish.length;
+      group.trim=fish.map(f=>[clown?f.size/largest:(f.rank*.6180339887+.31)%1,!clown&&f.rank===0?1:0]);
+    }
+  }
+  regroup();
   const dummy=new THREE.Object3D(),euler=new THREE.Euler(0,0,0,'YZX');
   return {update(){
+    if(version!==simulation.version)regroup();
     for(const group of groups){
       for(let i=0;i<group.fish.length;i++){
         const f=group.fish[i];dummy.position.copy(f.position);dummy.scale.setScalar(f.size);euler.set(f.roll,f.yaw,f.pitch);dummy.quaternion.setFromEuler(euler);dummy.updateMatrix();group.mesh.setMatrixAt(i,dummy.matrix);

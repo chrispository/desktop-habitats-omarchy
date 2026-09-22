@@ -12,6 +12,9 @@ export const FIXED_STEP=1/60;
 // chromis is also a keeper's number: below seven a pod concentrates its aggression on one
 // fish and eats itself down to a single survivor.
 export const POPULATION={clownfish:3,chromis:9,anthias:7,shrimp:2};
+// The fewest and most of each fish a host may ask for. One anemone holds a queue of four
+// clownfish at most; the shrimp are tied to their two cleaning stations.
+export const POPULATION_RANGE={clownfish:[0,4],chromis:[0,18],anthias:[0,14]};
 const REEF_BOUNDS=[...ROCKS,...CORAL_BOUNDS];
 // Where the two Acropora thickets sit in that list. A chromis does not merely hover near
 // its colony, it lives in it — juveniles barely leave the branches and the whole pod drops
@@ -114,27 +117,60 @@ export function seatShrimp(x,z,yaw){
   return {pitch,roll,lift:fit.lift,root:place(0,SHRIMP.seat,0),feet:SHRIMP.feet.flatMap(([a,y,b])=>[-b,b].map(side=>place(a,SHRIMP.seat+y,side)))};
 }
 
+const CLOWN_SEATS=[[-5.15,4.18,2.1],[-2.78,3.99,1.85],[-3.54,3.85,2.35],[-4.35,4.02,2.5]];
+
 export class ReefSimulation {
-  constructor(seed=36719) {
+  constructor(seed=36719,population=POPULATION) {
     this.random=randomGenerator(seed);this.time=0;this.fish=[];this.food=Array.from({length:32},()=>({active:false,position:V(),velocity:V(),age:0,size:0}));
     this.lastFeed=-10;this.consumed=0;this.steps=0;
     this._flow=V();this._delta=V();this._desired=V();this._force=V();this._sep=V();this._cohesion=V();this._align=V();this._relative=V();this._heading=V();this.navigation=reefNavigation();
     this.shoals=SHOALS.map((s,i)=>({...s,home:V(...s.home),centre:V(...s.home),velocity:V(),swell:1,out:V(),path:[],sector:i===0?2:i===1?0:1,direction:i===1?-1:1,legs:1}));
-    // Buston & Cant measured 177 adjacent-rank pairs on wild percula: a dominant ends up
-    // 1.26 times its immediate subordinate's length, and 1.37 for the two smallest fish.
-    // These three sizes are that ladder, so the group reads as a queue rather than a trio.
-    const initial=[[-5.15,4.18,2.1],[-2.78,3.99,1.85],[-3.54,3.85,2.35]];
-    for(let i=0;i<3;i++)this.add('clown',initial[i],[.84,.66,.48][i],i);
-    for(let i=0;i<9;i++)this.add('chromis',null,.63+(i?this.random()*.13:.15),i,i%2);
-    // Rank 0 is the terminal male. FishBase puts the male at 15 cm against 7 cm for the
-    // female, and an aquarium harem at about 12.5 cm to 9; he is half again their length.
-    for(let i=0;i<7;i++)this.add('anthias',null,(i?.66:1.00)+this.random()*.09,i,2);
+    this.population={...POPULATION,...population};this.version=0;
+    for(let i=0;i<this.population.clownfish;i++)this.spawn('clown',i);
+    for(let i=0;i<this.population.chromis;i++)this.spawn('chromis',i);
+    for(let i=0;i<this.population.anthias;i++)this.spawn('anthias',i);
     this.previous=this.fish.map(()=>({p:V(),v:V(),alarm:0}));
     // The shrimp draw from their own stream. Sharing the fish's made every tuning of a walk
     // bout shift nineteen fish trajectories with it, which is a trap rather than a coupling.
     this.shrimpRandom=randomGenerator(seed^0x5bf03635);
     this.shrimp=STATIONS.map((p,i)=>({position:V(p.x,p.y,p.z),home:V(p.x,p.y,p.z),goal:V(p.x,p.y,p.z),yaw:i===0?.30:2.8,state:'advertise',timer:3+i*2,
       rhythm:i*.7,step:0,walk:0,pick:0,reach:0,curl:0,sway:0,signal:0,flick:0,sniff:0,burst:1+i,reverse:false,out:0,away:SHRIMP.outing*(.5+.8*this.shrimpRandom())}));
+  }
+  // One fish of a kind at its rank in that kind's hierarchy.
+  spawn(kind,rank) {
+    // Buston & Cant measured 177 adjacent-rank pairs on wild percula: a dominant ends up
+    // 1.26 times its immediate subordinate's length, and 1.37 for the two smallest fish.
+    // These sizes are that ladder, so the group reads as a queue rather than a trio; a
+    // fourth fish joins the bottom, a further 1.26 down.
+    if(kind==='clown')return this.add('clown',CLOWN_SEATS[rank],[.84,.66,.48,.38][rank],rank);
+    if(kind==='chromis')return this.add('chromis',null,.63+(rank?this.random()*.13:.15),rank,rank%2);
+    // Rank 0 is the terminal male. FishBase puts the male at 15 cm against 7 cm for the
+    // female, and an aquarium harem at about 12.5 cm to 9; he is half again their length.
+    return this.add('anthias',null,(rank?.66:1.00)+this.random()*.09,rank,2);
+  }
+  // Changes the fish counts while the tank runs. Fish leave from the bottom of each
+  // hierarchy, so the clownfish pair, the nest-holding chromis and the male anthias stay
+  // longest; newcomers take the next rank down.
+  setPopulation(population) {
+    let changed=false;
+    for(const [name,kind] of [['clownfish','clown'],['chromis','chromis'],['anthias','anthias']]){
+      const [low,high]=POPULATION_RANGE[name],want=clamp(Math.round(population[name]??this.population[name]),low,high);
+      let have=this.fish.filter(f=>f.kind===kind);
+      while(have.length>want){
+        const gone=have.reduce((a,b)=>b.rank>a.rank?b:a),index=this.fish.indexOf(gone);
+        this.fish.splice(index,1);this.previous.splice(index,1);
+        for(const f of this.fish)if(f.follow===gone)f.follow=null;
+        have=have.filter(f=>f!==gone);changed=true;
+      }
+      while(have.length<want){
+        const f=this.spawn(kind,have.length);
+        this.previous.push({p:f.position.clone(),v:V(),alarm:0});
+        have.push(f);changed=true;
+      }
+      this.population[name]=want;
+    }
+    if(changed)this.version++;
+    return changed;
   }
   add(kind,position,size,rank,shoal=-1) {
     const r=this.random;
@@ -556,7 +592,7 @@ export class ReefSimulation {
     }
   }
   diagnostics(){
-    return {time:this.time,steps:this.steps,population:POPULATION,food:this.food.filter(p=>p.active).length,consumed:this.consumed,
+    return {time:this.time,steps:this.steps,population:this.population,food:this.food.filter(p=>p.active).length,consumed:this.consumed,
       maxSpeed:Math.max(...this.fish.map(f=>f.velocity.length())),finite:this.fish.every(f=>[...f.position,...f.velocity,f.yaw,f.phase].every(Number.isFinite))};
   }
 }

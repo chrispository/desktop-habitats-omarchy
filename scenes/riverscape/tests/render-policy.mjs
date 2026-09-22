@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { renderSettings, framebufferSize } from '../src/render-policy.js';
-import { frameRate, qualityName, renderScale, QUALITY_PRESETS } from '../../shared/render-policy.js';
+import {
+  frameRate, qualityName, renderScale, QUALITY_PRESETS, panPosition, panOffset, wideReach, fishCounts, sweepSpeed, sweepPhase, sweepPan,
+} from '../../shared/render-policy.js';
 import { createFrameLoop } from '../../shared/frame-loop.js';
 
 const reference = renderSettings({ profile: 'reference', wallpaper: true, pixelRatio: 2 });
@@ -80,3 +82,24 @@ assert.equal(qualityName('toString'), 'balanced');
 assert.equal(renderScale('balanced', NaN), 1);
 assert.equal(renderScale('detail', 1), 1);
 assert.deepEqual(framebufferSize(3840,2160,1.25,8192,1800000), {width:1789,height:1006,scale:Math.sqrt(1800000/(3840*2160))});
+
+assert.equal(panPosition('auto'), null);
+assert.equal(panPosition(null), null);
+assert.equal(panPosition('fish'), null);
+assert.equal(panPosition('0.5'), 0.5);
+assert.equal(panPosition(3), 1);
+const reach = wideReach(25.8, 20.5);
+assert.equal(panOffset(1, 25.8, 16 / 9, 20.5, reach), 0, 'A wide screen already shows both ends');
+assert.ok(panOffset(1, 37.8, 9 / 16, 20.5, reach) > 0, 'A portrait screen slides right');
+assert.equal(panOffset(-1, 37.8, 9 / 16, 20.5, reach), -panOffset(1, 37.8, 9 / 16, 20.5, reach));
+const limits = { a: [0, 4], b: [1, 48] };
+assert.deepEqual(fishCounts('a:9,b:0,c:3,b', { a: 3, b: 24 }, limits), { a: 4, b: 1 });
+assert.deepEqual(fishCounts(null, { a: 3, b: 24 }, limits), { a: 3, b: 24 });
+assert.equal(sweepSpeed(5), 1);
+assert.equal(sweepSpeed(9), 4, 'Speed 9 is a thirty-second round trip');
+assert.equal(sweepSpeed(null), 1);
+assert.equal(sweepSpeed(99), sweepSpeed(10));
+assert.equal(sweepSpeed(-3), 0.25);
+assert.ok(Math.abs(sweepSpeed(4) * Math.SQRT2 - 1) < 1e-12, 'Each step is √2');
+// A quarter of a speed-9 round trip (7.5 s) reaches the right end.
+assert.ok(Math.abs(sweepPan(sweepPhase(0, 7.5, sweepSpeed(9))) - 1) < 1e-9);

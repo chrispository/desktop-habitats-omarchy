@@ -1,10 +1,10 @@
 import { reportSceneError } from './controls.js';
 
 // WebKit can finish document navigation before the dynamic scene import resolves.
-// Keep the host's latest power/rate commands until the scene installs its callbacks.
+// Keep the host's latest power/rate/pan/sweep/fish commands until the scene installs its callbacks.
 const pendingHostCommands = new Map();
 if (document.documentElement.dataset.motion === 'host') {
-  for (const name of ['habitatPower', 'habitatRate']) {
+  for (const name of ['habitatPower', 'habitatRate', 'habitatPan', 'habitatSweep', 'habitatFish']) {
     window[name] = value => pendingHostCommands.set(name, value);
   }
 }

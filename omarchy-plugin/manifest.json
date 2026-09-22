@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "chrispository.desktop-habitats",
+  "name": "Desktop Habitats",
+  "version": "0.1.0",
+  "author": "chrispository",
+  "license": "MIT",
+  "description": "Controls for the Desktop Habitats live aquarium wallpaper: tank, screens, framing and fish",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Desktop Habitats",
+    "description": "Pick the tank, framing and fish for each screen",
+    "category": "Compositor",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

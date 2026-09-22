@@ -17,6 +17,12 @@ The wallpaper reads `~/.config/desktop-habitats/config.jsonc`. It creates this f
   "resolution": "auto",        // "auto", "native" or a scale from 0.25 to 2
   "fps": 30,                   // 1 to 60
   "framing": "auto",           // "auto", "landscape" or "portrait"
+  "pan": "auto",               // "auto" sweeps end to end, or -1 (left end) to 1 (right end)
+  "panSpeed": 5,               // auto's speed, 1 to 10 (5: 2 min round trip, 9: 30 s)
+  "fish": {
+    "riverscape": { "tetras": 24 },                              // 1-48
+    "reefscape": { "clownfish": 3, "chromis": 9, "anthias": 7 }  // 0-4, 0-18, 0-14
+  },
   "monitors": {
     // Per-output overrides; use `hyprctl monitors` to find output names.
     // "DP-2": { "environment": "reefscape", "framing": "portrait" },
@@ -25,7 +31,7 @@ The wallpaper reads `~/.config/desktop-habitats/config.jsonc`. It creates this f
 }
 ```
 
-`auto` framing chooses a composition to fit each screen's shape. `auto` resolution scales the render to fill the screen within the selected quality profile; `native` renders at screen resolution. You can override settings for a single run with command-line options such as `--env reefscape`. See all options with `./build/linux/desktop-habitats --help`.
+`auto` framing chooses a composition to fit each screen's shape. `pan` moves a narrow (portrait) screen's view along the tank: `auto` sweeps it slowly from one end to the other and back, and a number holds it in place. It has no effect on a screen already wide enough to show the whole tank. Fish counts, pan, pan speed and fps apply to the running tank: new fish swim in and leavers go, with no restart. Changing the tank, quality, resolution or framing reloads it. `auto` resolution scales the render to fill the screen within the selected quality profile; `native` renders at screen resolution. You can override settings for a single run with command-line options such as `--env reefscape`. See all options with `./build/linux/desktop-habitats --help`.
 
 ## Run on Omarchy (Hyprland)
 
@@ -58,6 +64,10 @@ rm -rf build/linux
 ```
 
 Your settings in `~/.config/desktop-habitats/config.jsonc` are kept. To remove them too, delete `~/.config/desktop-habitats`.
+
+### Bar widget
+
+`omarchy-plugin/` is an Omarchy bar widget for choosing the tank, fish, framing and quality for each screen from the top bar. See [its README](omarchy-plugin/README.md) to install it.
 
 ## Try it in a browser
 
