@@ -30,6 +30,22 @@ During installation, macOS may ask whether Terminal can control System Events. T
 
 You don't need Node.js for the wallpaper. If you already have it, `npm run wallpaper` runs the same installer.
 
+## Run on Omarchy (Hyprland)
+
+The Linux host is a small Qt6 app in `linux/` that needs `qt6-webengine`, `layer-shell-qt`, `cmake` and `ninja`. Build it from the project folder:
+
+```sh
+cmake -G Ninja -S linux -B build/linux -DCMAKE_BUILD_TYPE=RelWithDebInfo && cmake --build build/linux
+```
+
+It serves the scenes straight from the project folder, so scene edits take effect on the next start. To start or restart the wallpaper, run this from the project folder:
+
+```sh
+pkill -f '^\./build/linux/desktop-habitats'; setsid -f ./build/linux/desktop-habitats > build/live.log 2>&1
+```
+
+Settings live in `~/.config/desktop-habitats/config.jsonc`, and the log goes to `build/live.log`. Run `./build/linux/desktop-habitats --help` for command-line overrides such as `--env reefscape`.
+
 ## Use the wallpaper
 
 Click the fish icon in the menu bar:

@@ -94,6 +94,11 @@ export function foliageMaterial() {
       // quarters of the four multisamples so the driver never dithers it into a pattern:
       // ribbon leaves pass a quarter of the light, their thinner edges half.
       diffuseColor.a = vThin < .7 ? 1.0 : (edge > .45 ? .5 : .75);
+      // Fade leaf geometry as its width falls below a few pixels. A tiny triangle
+      // otherwise lands on isolated MSAA samples and flashes as the plants move.
+      // Stems have vThin = 0 and keep their original coverage.
+      float leafFade = 1.0 - smoothstep(.25, 1.0, fwidth(leafUv.x));
+      diffuseColor.a *= mix(1.0, leafFade, step(.05, vThin));
     `,
     );
     shader.fragmentShader = shader.fragmentShader.replace(
@@ -124,7 +129,7 @@ export function foliageMaterial() {
       `,
     });
   };
-  material.customProgramCacheKey = () => "aquatic-leaves-v3";
+  material.customProgramCacheKey = () => "aquatic-leaves-v5";
   return material;
 }
 
