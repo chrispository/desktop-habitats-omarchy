@@ -6,9 +6,9 @@ import { ANEMONES } from './layout.js';
 import { supportHeight } from './terrain.js';
 import { crownProfile, buildCrown, crownOrder, crownBudget } from './anemone-crown.js';
 
-// The finished host retains its broad, long-fingered crown. Small specimens use the
-// compact oral-disc layout in anemone-crown.js, with a wider disc, shorter column and
-// shorter tentacles. All bodies share a mesh; all tentacles share an instanced draw.
+// The small specimens: the compact oral-disc layout in anemone-crown.js, with a wide disc,
+// short column and short tentacles. The host is the rigged model in host-anemone.js. All
+// these bodies share a mesh; all their tentacles share an instanced draw.
 const COLUMN_HEIGHT=.66,RIM=.36;
 // Column silhouette as [share of height, radius/S]: the pedal disc gripping the rock, a
 // waist, and the flare to the rim; cosine-blended so the rim rounds off and the waist is a
@@ -94,11 +94,13 @@ function tentacleGeometry(){
   const hub=pos.length/3;pos.push(0,0,0);for(let i=0;i<sides;i++)idx.push(hub,i,i+1);
   const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geo.setIndex(idx);geo.computeVertexNormals();return geo;
 }
-// Every specimen has its own density budget; the host retains its previous shape.
-export const TENTACLE_COUNT=ANEMONES.reduce((n,spec)=>n+crownProfile(spec).count,0);
+// Every specimen has its own density budget. The host, ANEMONES[0], is not drawn here, but
+// each specimen keeps its index so its crown is the one it always had.
+export const SPECIMENS=ANEMONES.slice(1);
+export const TENTACLE_COUNT=SPECIMENS.reduce((n,spec)=>n+crownProfile(spec).count,0);
 export function createAnemone(scene){
   // Built after the terrain, so the columns stand on the baked rock rather than its analytic stand-in.
-  const specimens=ANEMONES.map(specimen);
+  const specimens=SPECIMENS.map((spec,i)=>specimen(spec,i+1));
   const vertex=`attribute vec4 aShape;attribute vec4 aCurve;attribute float aFlex;varying float vAxis;varying float vAround;varying float vTone;varying float vRing;varying float vSeed;${responseGLSL}
     // The resting strand is a circular arc in the local x-y plane (x outward from the disc,
     // y the anemone's axis): it leaves the disc aCurve.x from the axis and turns a further

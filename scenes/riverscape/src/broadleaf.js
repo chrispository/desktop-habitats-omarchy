@@ -595,7 +595,7 @@ function anubias(
     const size =
       bladeLength * (young ? between(0.45, 0.62) : between(0.82, 1.06));
     const stalkLength =
-      size * (young ? between(0.4, 0.75) : between(0.6, 1.15));
+      size * (young ? between(0.3, 0.55) : between(0.42, 0.8));
     // Leaves alternate to either side of the creeping rhizome, the angle drifting round it
     // so the clump fills in rather than forming a flat row. A leaf that would grow into a
     // rock finds its way round it instead.
@@ -614,7 +614,7 @@ function anubias(
       if (flat.lengthSq() < 0.05)
         flat.crossVectors(frame.tangent, UP).multiplyScalar(Math.sign(swing));
       // An old leaf has arched further over, so its blade is carried lower and further out.
-      const lift = between(0.42, 0.85) + 0.45 * (1 - age) ** 1.4;
+      const lift = between(0.32, 0.7) + 0.4 * (1 - age) ** 1.4;
       const candidate = flat
         .clone()
         .multiplyScalar(Math.cos(lift))
@@ -680,8 +680,8 @@ function anubias(
       .normalize();
     const face =
       rand() < 0.3
-        ? spun(upright, lamina, between(-1.5, 1.5))
-        : faceToLight(lamina, upright, open, between(-0.8, 0.8));
+        ? spun(upright, lamina, between(-0.6, 0.6))
+        : faceToLight(lamina, upright, open, between(-0.45, 0.45));
     const canopy =
       0.66 +
       0.34 *
@@ -697,12 +697,12 @@ function anubias(
       tangent: lamina,
       face,
       length: size,
-      width: size * between(0.44, 0.5),
+      width: size * between(0.38, 0.45),
       outline: OUTLINES.anubias,
       root,
       color: new THREE.Color().setHSL(
         hue + between(-0.03, 0.035) - (young ? 0.035 : 0),
-        between(0.55, 0.78),
+        between(0.46, 0.64),
         (young ? between(0.14, 0.19) : between(0.07, 0.15)) * shade,
       ),
       distance0: petiole.strand.distance,
@@ -714,11 +714,11 @@ function anubias(
       arch: between(0.03, 0.1),
       droop: between(0.03, 0.12),
       sweep: between(-0.12, 0.12),
-      cordate: { reach: between(0.12, 0.18), span: 0.28, lift: 0.25 },
-      cup: between(0.26, 0.46),
+      cordate: { reach: between(0.06, 0.1), span: 0.28, lift: 0.1 },
+      cup: between(0.08, 0.18),
       keel: 0.02,
       twist: between(-0.1, 0.1),
-      undulate: between(0.02, 0.05),
+      undulate: between(0.03, 0.06),
       undulateWaves: 2,
       bullate: 0.03,
       furl: young && rand() < 0.6 ? between(0.5, 0.85) : 0,
@@ -1054,7 +1054,7 @@ export function plantForeground(batch) {
       heading,
       blade,
       leaves,
-      hue: between(0.285, 0.325),
+      hue: between(0.305, 0.34),
       open: vec(-0.55, 0, 1).normalize(),
     });
   }
@@ -1080,7 +1080,7 @@ export function plantForeground(batch) {
       faceNormal: face.normal,
       surface: (px, pz) =>
         rockFace(index, px - ROCKS[index].x, pz - ROCKS[index].z).point.y,
-      hue: between(0.285, 0.325),
+      hue: between(0.305, 0.34),
       open: vec(index === 2 ? 0.5 : -0.45, 0, 1).normalize(),
     });
   }

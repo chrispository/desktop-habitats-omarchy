@@ -1,6 +1,12 @@
 # Plan: Swap Reefscape's host anemone for the rigged Blender model
 
-Status: proposal. Nothing here is built yet.
+Status: the rigged host is in Reefscape (`scenes/reefscape/src/host-anemone.js`), running
+the motion from the standalone preview rather than the spring dynamics below: the travelling
+wave, a lean with the pump current, the tentacle contact solver (now with clownfish capsules
+too, so bathing fish part the crown), and a startle retraction when a clownfish near the
+host takes an alarm. `HOST.y` is lowered to 3.20 (option a) with a hidden skirt under the
+stub, the model is scaled 0.90, and the four compact anemones stay procedural. Feeding, the
+`mouth` bone and the farthest-point LOD reorder are not done.
 
 ## Goal
 
@@ -34,10 +40,15 @@ hours on laptops, so the anemone has to stay within the frame budget the current
 - **Determinism.** The capture mode (`?capture&time=`) and `window.reef.advance()` call
   only `simulation.step(FIXED_STEP)`, with `FIXED_STEP = 1/60`. Anything that has to
   replay the same way twice must be advanced inside `simulation.step`.
-- **Assets.** There is no glTF anywhere. Assets are custom binaries (`live-rock.bin`,
-  `rock-support.bin`) baked by the Python scripts in `tools/`, loaded with `fetch`, and
-  validated in `tests/assets.mjs`. `vendor/` holds only the three.js core, not its
-  add-ons.
+- **Assets.** `3d_models/anemone.glb` is exported (2.9 MB) with two skinned anemone meshes,
+  a 389-bone skin, vertex colours and UVs. It has no baked animation clips. The export also
+  contains an unskinned `Cube` node, which the standalone preview hides. Although
+  `build_anemone.py` puts `ring`, `angle` and `phase` on the base pose bones, this GLB has no
+  node `extras`; the preview derives those values from the bone positions and names. The
+  preview is [`docs/anemone_preview.html`](anemone_preview.html). Reefscape's other assets
+  remain custom binaries (`live-rock.bin`, `rock-support.bin`) baked by the Python scripts
+  in `tools/`, loaded with `fetch`, and validated in `tests/assets.mjs`. `vendor/` now has
+  the r180 GLTF loader and its geometry utility beside the matching three.js core.
 - **Shading.** Every organism uses the `underwater()` material wrapper in `water.js`
   (caustics, extinction, transmission). Shadows are baked once (`shadowMap.autoUpdate =
   false`), and moving organisms don't cast them.
@@ -51,7 +62,7 @@ The units are tank units (1 BU = 10 cm), and Z is up in Blender.
 |---|---|
 | `Anemone_Body` | Short stub column (the upper 2/5 of the host's column), a flared rim, a domed oral disc and a slit mouth. About 5.9k verts, colours stored per vertex. |
 | `Anemone_Tentacles` | 96 tentacles, 27k verts, yellow shafts with white tips. UV `v` runs from the root (0) to the tip (1). |
-| `Anemone_Rig` | 389 bones: `root`, `column.01–03`, `disc`, and `tentacle.NNN.01–04`. Local **X** is each tentacle's bend axis (+X curls it outward, −X inward), and **Z** swings it sideways. Each base bone carries `ring`, `angle` and `phase`. |
+| `Anemone_Rig` | 389 bones: `root`, `column.01–03`, `disc`, and `tentacle.NNN.01–04`. Local **X** is each tentacle's bend axis (+X curls it outward, −X inward), and **Z** swings it sideways. The Blender source stores `ring`, `angle` and `phase` on each base pose bone; this GLB export does not include them as node extras. |
 
 Every vertex has at most 2 bone influences, so skinning is cheap.
 
@@ -93,11 +104,9 @@ Export settings:
 
 Expect a file of about 2–3 MB.
 
-**The loader.** `vendor/` has only the three.js core (r180). Add
-`vendor/addons/loaders/GLTFLoader.js` and `vendor/addons/utils/BufferGeometryUtils.js`,
-both from the same r180 release, so they match the core. The import map already resolves
-`three`, and the loader imports nothing else. That's the one new dependency, and it's
-first-party three.js.
+**The loader.** `vendor/addons/loaders/GLTFLoader.js` and
+`vendor/addons/utils/BufferGeometryUtils.js` are vendored from the same r180 release as the
+core. The standalone preview uses them to load the exported GLB locally.
 
 **What's still done in three.js, not the exporter:**
 - **Tentacle order for the quality levels.** At load time, group the tentacle triangles by

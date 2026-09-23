@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { createTerrain, createBackdrop } from './terrain.js';
 import { createCorals } from './corals.js';
 import { createAnemone } from './anemone.js';
+import { createHostAnemone } from './host-anemone.js';
 import { createFishSchool } from './fish-model.js';
 import { createShrimp } from './shrimp.js';
 import { createParticles } from './particles.js';
@@ -99,11 +100,13 @@ async function start(){
   const rockDepthMaterial=new THREE.MeshBasicMaterial({colorWrite:false});
   rockPrepass.add(new THREE.Mesh(rockSurface.geometry,rockDepthMaterial));
   const simulation=new ReefSimulation(undefined,population);
+  const hostAnemone=await createHostAnemone(scene,simulation);
   const fishSchool=createFishSchool(scene,simulation);
   restock=()=>{if(simulation.setPopulation(population)&&!document.hidden)render();};
   const shrimp=createShrimp(scene,simulation),particles=createParticles(scene,simulation,shadow);
   function sync(dt){
     waterTime.value=simulation.time;
+    hostAnemone.update(dt);
     fishSchool.update();
     shrimp.update();particles.update(dt);
   }
@@ -174,7 +177,7 @@ async function start(){
     const wasZeroSize=zeroSize;
     zeroSize=!(width>0&&height>0);
     if(zeroSize){restart();return;}
-    anemone.setQuality(quality);
+    anemone.setQuality(quality);hostAnemone.setQuality(quality);
     ratio=hostScale?hostScale*(devicePixelRatio||1):renderScale(quality,devicePixelRatio,onBattery)*autoScale;
     const {width:w,height:h}=framebufferSize(width,height,ratio,renderer.capabilities.maxTextureSize,hostScale?Infinity:preset.pixels);ratio=w/width;renderer.setSize(w,h,false);target.setSize(w,h);post.uniforms.size.value.set(w,h);post.uniforms.aoRadiusScale.value=h/972;
     camera.aspect=width/height;
@@ -219,7 +222,7 @@ async function start(){
   restart();
   window.reef={
     ready:true,diagnostics:()=>({...simulation.diagnostics(),frames,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,geometries:renderer.info.memory.geometries,textures:renderer.info.memory.textures,
-      pixels:[canvas.width,canvas.height],quality,effectiveFPS:running()?fps():0,renderScale:ratio,cpuFrameEMA:cpuEMA,scheduled:loop.state.pending,paused,hostRate,hidden:document.hidden,contextLost,tentacles:anemone.tentacles.count,webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL2',renderer:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
+      pixels:[canvas.width,canvas.height],quality,effectiveFPS:running()?fps():0,renderScale:ratio,cpuFrameEMA:cpuEMA,scheduled:loop.state.pending,paused,hostRate,hidden:document.hidden,contextLost,tentacles:anemone.tentacles.count+hostAnemone.count,hostBones:hostAnemone.bones,webgl:renderer.capabilities.isWebGL2?'WebGL2':'WebGL2',renderer:renderer.getContext().getParameter(renderer.getContext().RENDERER)}),
     setView(name){if(!views[name])throw new RangeError('Unknown reef camera');applyView(name);resize();},
     pause(value=true){paused=Boolean(value);restart();},
     advance(seconds){if(!paused)throw new Error('Pause before advancing deterministic capture time.');if(!Number.isFinite(seconds)||seconds<0||seconds>120)throw new RangeError('Advance must be 0–120 seconds.');for(let i=0;i<Math.round(seconds/FIXED_STEP);i++)simulation.step(FIXED_STEP);sync(seconds);render();},

@@ -589,7 +589,9 @@ function plantFronds(scene, groups) {
       object.scale.set(size * range(0.8, 1.2), size, size * range(0.8, 1.2));
       object.updateMatrix();
       fronds.setMatrixAt(index, object.matrix);
-      color.setHSL(0.25 + range(-0.02, 0.02), 0.55, 0.42 - coverage * 0.2 + range(-0.05, 0.05));
+      // Held a shade darker than the turf's HSL alone gives, so the lit fronds on the wood
+      // sit into the planting instead of jumping out of it.
+      color.setHSL(0.25 + range(-0.02, 0.02), 0.55, 0.42 - coverage * 0.2 + range(-0.05, 0.05)).multiplyScalar(0.95);
       fronds.setColorAt(index, color);
       index++;
     }

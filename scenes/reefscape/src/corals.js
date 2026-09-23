@@ -60,9 +60,10 @@ export function createCorals(scene){
     // the cave beneath stays open.
     grow(-.45,-1.14,.12,.95,.90,707,'#a08050','#ecdab0',{...ACRO,roots:12,forks:4,reach:.56}),
     grow(1.34,-1.24,.30,.95,.55,811,'#6c4e8c','#cdb4ec',BRUSH),
-    // Low colonies crowd the host's foot, so its column rises out of the reef, not bare rock.
-    grow(-3.66,1.34,.10,.92,.95,1201,'#6e8636','#d4e894',{...FINGER,roots:13,vary:.30}),
-    grow(-4.38,1.30,.10,.84,.80,1207,'#8a6a92','#e2cdea',{...FINGER,roots:10,thickness:.075,vary:.30}),
+    // Low colonies crowd the host's foot, so it rises out of the reef, not bare rock. They
+    // stand down in the crevice with it; any higher and they screen its crown.
+    grow(-3.66,1.34,.62,.92,.95,1201,'#6e8636','#d4e894',{...FINGER,roots:13,vary:.30}),
+    grow(-4.38,1.30,.62,.84,.80,1207,'#8a6a92','#e2cdea',{...FINGER,roots:10,thickness:.075,vary:.30}),
     grow(-7.30,1.10,.06,.55,.90,1213,'#8a6a48','#d4c098',{...FINGER,roots:12,vary:.30}),
     // A lime Pocillopora on the right shoulder, all blunt lumpy branchlets.
     grow(6.15,.50,.02,.85,1.05,905,'#6aa232','#d4f482',{...FINGER,roots:30,forks:3,order:1,thickness:.11,reach:.46,spread:.50,taper:.72,radials:40,glow:.5,vary:.25}),

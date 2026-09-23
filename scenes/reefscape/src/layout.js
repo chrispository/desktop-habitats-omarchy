@@ -22,11 +22,11 @@ export const ROCKS=[
   [-.55,2.62,-1.20,1.65,.78,1.00],
   [1.25,2.98,-1.28,1.50,.72,.92],
 ];
-// The clownfish host, on the left island's front shoulder. x, y, z is its oral disc — the
-// column runs from there down to the rock — and radius the crown's reach; the clownfish
-// goals, their shelter point and the non-host avoidance all key off these. lean tips the
-// axis (x and z, as a share of its height) so the disc faces the viewer a little.
-export const HOST={x:-3.95,y:3.72,z:1.0,radius:1.25,lean:[.10,.30]};
+// The clownfish host, on the left island's front shoulder. x, y, z is its oral disc — its
+// short stub of a column stands down in the rock below — and radius the crown's reach; the
+// clownfish goals, their shelter point and the non-host avoidance all key off these. lean
+// tips the axis (x and z, as a share of its height) so the disc faces the viewer a little.
+export const HOST={x:-3.95,y:3.20,z:1.0,radius:1.25,lean:[.10,.30]};
 // The host comes first. Small specimens use an explicit compact crown, not a shrunken
 // host. They sit low on free rock, with independent leans. y is the authored disc height;
 // the compact form settles its disc a little lower to sit into the rock shoulder.

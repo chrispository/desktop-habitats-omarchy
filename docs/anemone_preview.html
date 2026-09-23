@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#071722" />
+    <title>Anemone motion study • Reefscape</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #071722;
+        color: #eaf4f5;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+      }
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      body {
+        background:
+          radial-gradient(ellipse at 52% 42%, rgba(29, 95, 113, .33), transparent 43%),
+          radial-gradient(ellipse at 85% 90%, rgba(11, 61, 79, .30), transparent 42%),
+          linear-gradient(145deg, #0b202b, #06121d 65%, #081a25);
+      }
+      #stage { position: fixed; inset: 0; }
+      canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      .panel {
+        position: absolute;
+        z-index: 2;
+        border: 1px solid rgba(202, 233, 233, .14);
+        background: rgba(5, 20, 29, .72);
+        box-shadow: 0 18px 55px rgba(0, 0, 0, .2);
+        backdrop-filter: blur(18px);
+      }
+      .intro {
+        top: clamp(18px, 4vh, 42px);
+        left: clamp(18px, 4vw, 56px);
+        width: min(440px, calc(100vw - 36px));
+        padding: 23px 25px 21px;
+        border-radius: 18px;
+      }
+      .eyebrow {
+        margin: 0 0 10px;
+        color: #8bd5cc;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .19em;
+        text-transform: uppercase;
+      }
+      h1 { margin: 0; font-size: clamp(23px, 3vw, 32px); font-weight: 540; letter-spacing: -.035em; }
+      .lede { max-width: 365px; margin: 10px 0 0; color: #b4c9ce; font-size: 13px; line-height: 1.55; }
+      .asset-line { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+      .chip {
+        padding: 6px 9px;
+        border: 1px solid rgba(179, 220, 222, .15);
+        border-radius: 999px;
+        color: #c9dcdf;
+        font-size: 10px;
+        letter-spacing: .025em;
+      }
+      .controls {
+        right: clamp(18px, 4vw, 56px);
+        bottom: clamp(18px, 4vh, 42px);
+        width: min(420px, calc(100vw - 36px));
+        padding: 16px;
+        border-radius: 17px;
+      }
+      .state-title { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin: 0 2px 12px; }
+      #state { font-size: 13px; font-weight: 650; }
+      #state-note { color: #93adb3; font-size: 11px; text-align: right; }
+      .buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+      #reset { grid-column: 1 / -1; min-height: 34px; }
+      button {
+        min-height: 42px;
+        padding: 9px 12px;
+        border: 1px solid rgba(177, 220, 222, .16);
+        border-radius: 11px;
+        color: #dceced;
+        background: rgba(180, 218, 221, .07);
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+        transition: background .18s ease, border-color .18s ease, transform .18s ease;
+      }
+      button:hover { border-color: rgba(155, 226, 218, .48); background: rgba(139, 213, 204, .12); }
+      button:active { transform: translateY(1px); }
+      button[aria-pressed="true"] { border-color: rgba(139, 213, 204, .72); background: rgba(58, 139, 137, .28); color: #f2ffff; }
+      button:focus-visible { outline: 2px solid #8bd5cc; outline-offset: 2px; }
+      .utility { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+      #pause { min-height: 34px; padding: 6px 10px; font-size: 11px; }
+      .hint { color: #7f9ba2; font-size: 10px; }
+      #error {
+        position: absolute;
+        z-index: 3;
+        inset: auto 18px 18px;
+        margin: auto;
+        max-width: 600px;
+        padding: 14px 17px;
+        border: 1px solid rgba(255, 140, 125, .4);
+        border-radius: 12px;
+        background: rgba(46, 20, 22, .92);
+        color: #ffd9d2;
+        font-size: 13px;
+      }
+      #loading { position: absolute; inset: 50% auto auto 50%; transform: translate(-50%, -50%); color: #c2dadd; font-size: 13px; letter-spacing: .04em; }
+      #loading[hidden], #error[hidden] { display: none; }
+      @media (max-width: 620px) {
+        .intro { top: 12px; left: 12px; padding: 17px 18px; }
+        .lede { font-size: 12px; }
+        .asset-line { margin-top: 12px; }
+        .controls { right: 12px; bottom: 12px; padding: 12px; }
+        .hint { display: none; }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../vendor/three.module.js",
+          "three/addons/": "../vendor/addons/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main id="stage" aria-label="Animated anemone model preview">
+      <canvas id="view" aria-label="Rigged host anemone moving in simulated water"></canvas>
+      <section class="panel intro">
+        <p class="eyebrow">Reefscape · motion study</p>
+        <h1>Host anemone</h1>
+        <p class="lede">The base stays still while each tentacle rolls through a traveling sine wave. The arms share a tempo, with a phase shift from joint to joint; bathing and startle responses are layered on top.</p>
+        <div class="asset-line" aria-label="Asset details">
+          <span class="chip">96 tentacles</span>
+          <span class="chip">389-bone rig</span>
+          <span class="chip">0 baked clips</span>
+        </div>
+      </section>
+      <section class="panel controls" aria-label="Animation preview controls">
+        <div class="state-title"><span id="state">Current flow</span><span id="state-note">traveling sine wave · still base</span></div>
+        <div class="buttons">
+          <button id="current" aria-pressed="true">Current flow</button>
+          <button id="bath">Clownfish bathing</button>
+          <button id="startle">Startle &amp; retract</button>
+          <button id="cycle">Slow retract cycle</button>
+          <button id="reset">Reset motion</button>
+        </div>
+        <div class="utility">
+          <button id="pause" aria-pressed="false">Pause</button>
+          <span class="hint">Drag to turn · Space to pause</span>
+        </div>
+      </section>
+      <div id="loading" role="status">Loading the rigged anemone…</div>
+      <div id="error" role="alert" hidden></div>
+    </main>
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+      const canvas = document.querySelector('#view');
+      const loading = document.querySelector('#loading');
+      const errorBox = document.querySelector('#error');
+      const stateLabel = document.querySelector('#state');
+      const stateNote = document.querySelector('#state-note');
+      const buttons = {
+        current: document.querySelector('#current'),
+        bath: document.querySelector('#bath'),
+        startle: document.querySelector('#startle'),
+        cycle: document.querySelector('#cycle'),
+        reset: document.querySelector('#reset'),
+        pause: document.querySelector('#pause'),
+      };
+      for (const button of Object.values(buttons)) button.disabled = true;
+
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, powerPreference: 'low-power' });
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.12;
+      renderer.setClearColor('#06131d');
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color('#06131d');
+      scene.fog = new THREE.FogExp2('#06131d', 0.075);
+      const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 60);
+      const focus = new THREE.Vector3(0, 0.59, 0);
+      camera.position.set(3.8, 2.4, 4.7);
+      camera.lookAt(focus);
+      scene.add(new THREE.HemisphereLight('#8bb9d0', '#263642', 1.25));
+      const key = new THREE.DirectionalLight('#ffe3bd', 3.0);
+      key.position.set(-3, 7, 4);
+      scene.add(key);
+      const rim = new THREE.DirectionalLight('#5fafff', 2.2);
+      rim.position.set(4, 3, -5);
+      scene.add(rim);
+      const fill = new THREE.PointLight('#47aeb3', 1.5, 10);
+      fill.position.set(0, 1.4, 3.3);
+      scene.add(fill);
+
+      const floor = new THREE.Mesh(
+        new THREE.SphereGeometry(0.73, 40, 24),
+        new THREE.MeshStandardMaterial({ color: '#243c43', roughness: 0.94, metalness: 0.02 }),
+      );
+      floor.scale.set(1, 0.24, 0.94);
+      floor.position.y = -0.13;
+      scene.add(floor);
+
+      const xAxis = new THREE.Vector3(1, 0, 0);
+      const zAxis = new THREE.Vector3(0, 0, 1);
+      const qx = new THREE.Quaternion();
+      const qz = new THREE.Quaternion();
+      const qDelta = new THREE.Quaternion();
+      const groups = [];
+      let model = null;
+      let elapsed = 0;
+      let lastFrame = performance.now();
+      let paused = false;
+      let bathStarted = -Infinity;
+      let startleStarted = -Infinity;
+      let cycleStarted = -Infinity;
+      let shownContraction = 0;
+      let mode = 'current';
+      let yaw = Math.atan2(camera.position.x, camera.position.z);
+      let dragging = false;
+      let previousPointerX = 0;
+
+      const clamp01 = value => Math.max(0, Math.min(1, value));
+      const ease = value => { const t = clamp01(value); return t * t * (3 - 2 * t); };
+      const stableUnit = index => {
+        const value = Math.sin((index + 1) * 127.1 + 311.7) * 43758.5453;
+        return value - Math.floor(value);
+      };
+
+      // Neighbouring tentacles must move nearly together or they pass through each
+      // other, so the wave's phase comes from where a tentacle sits on the disc (a
+      // wave rolling across the crown) plus a small per-tentacle jitter.
+      const FLOW_DIR = new THREE.Vector2(0.8, 0.6);
+      const WAVE_NUMBER = 3.2;      // radians of phase per unit of distance along FLOW_DIR
+      const PHASE_JITTER = 0.5;     // radians of per-tentacle phase variation
+      const PLANE_PHASE = 1.2;      // swing lags curl by this much
+
+      function makeWave(index, x, z) {
+        const along = x * FLOW_DIR.x + z * FLOW_DIR.y;
+        return {
+          phase: along * WAVE_NUMBER + (stableUnit(index + 1300) - 0.5) * PHASE_JITTER,
+          planePhase: PLANE_PHASE + (stableUnit(index + 2300) - 0.5) * PHASE_JITTER,
+          curlGain: 0.9 + stableUnit(index + 3300) * 0.2,
+          swingGain: 0.65 + stableUnit(index + 4300) * 0.35,
+        };
+      }
+
+      const WAVE_SPEED = 0.9;       // radians per second of the traveling wave
+      const WAVE_INTENSITY = 0.75;  // scales curl and swing amplitude
+
+      function waveAt(group, t, jointPhase) {
+        const phase = t * WAVE_SPEED + group.phase - jointPhase;
+        const harmonic = phase * 2 + group.phase * 0.25;
+        return {
+          curl: (0.42 * Math.sin(phase) + 0.08 * Math.sin(harmonic)) * group.curlGain * WAVE_INTENSITY,
+          swing: (0.10 * Math.sin(phase + group.planePhase) +
+            0.025 * Math.sin(harmonic + group.planePhase)) * group.swingGain * WAVE_INTENSITY,
+        };
+      }
+
+      function setState(name, note) {
+        stateLabel.textContent = name;
+        stateNote.textContent = note;
+        for (const [key, button] of Object.entries(buttons)) {
+          button.setAttribute('aria-pressed', String(key === mode || (key === 'pause' && paused)));
+        }
+      }
+
+      function applyRotation(bone, base, curl, swing) {
+        qx.setFromAxisAngle(xAxis, curl);
+        qz.setFromAxisAngle(zAxis, swing);
+        qDelta.copy(qx).multiply(qz);
+        bone.quaternion.copy(base.quaternion).multiply(qDelta);
+      }
+
+      function poseJoint(entry) {
+        applyRotation(entry.bone, entry.rest, entry.curl + entry.fixCurl, entry.swing + entry.fixSwing);
+      }
+
+      // Contact solver: the wave keeps neighbours close to in step, but tentacles are packed
+      // tightly enough that they still touch. Each tentacle is treated as a chain of capsules;
+      // wherever two overlap by more than they already do in the modelled rest pose, both are
+      // nudged apart through small curl/swing corrections that fade once the contact clears.
+      const POSE_SMOOTHING = 0.25;  // seconds; joints ease toward their target so mode switches never jump
+      const CONTACT_ITERATIONS = 8;   // upper bound; calm frames settle in one or two
+      const CONTACT_TOLERANCE = 0.003; // overlap below this doesn't warrant another pass
+      const FIX_RELAX = 0.6;        // seconds for a correction to fade once clear
+      const FIX_LIMIT = 0.9;        // radians, per joint and axis
+      const contactPoints = [];     // per tentacle: 4 joint pivots + tip, world space
+      const contactBoxes = [];      // per tentacle: min x/y/z, max x/y/z
+      let contactAllowed = null;    // rest-pose overlap per tentacle pair and segment pair
+      const closest = { s: 0, t: 0, distance: 0 };
+      const cp = new THREE.Vector3();
+      const cq = new THREE.Vector3();
+      const normal = new THREE.Vector3();
+      const axis = new THREE.Vector3();
+      const lever = new THREE.Vector3();
+      const tipOffset = new THREE.Vector3();
+
+      // Ericson, Real-Time Collision Detection 5.1.9: closest points of segments p1q1 and p2q2.
+      function closestSegments(p1, q1, p2, q2) {
+        const d1x = q1.x - p1.x, d1y = q1.y - p1.y, d1z = q1.z - p1.z;
+        const d2x = q2.x - p2.x, d2y = q2.y - p2.y, d2z = q2.z - p2.z;
+        const rx = p1.x - p2.x, ry = p1.y - p2.y, rz = p1.z - p2.z;
+        const a = d1x * d1x + d1y * d1y + d1z * d1z;
+        const e = d2x * d2x + d2y * d2y + d2z * d2z;
+        const b = d1x * d2x + d1y * d2y + d1z * d2z;
+        const c = d1x * rx + d1y * ry + d1z * rz;
+        const f = d2x * rx + d2y * ry + d2z * rz;
+        const denom = a * e - b * b;
+        let s = denom > 1e-12 ? clamp01((b * f - c * e) / denom) : 0;
+        let t = (b * s + f) / e;
+        if (t < 0) { t = 0; s = clamp01(-c / a); }
+        else if (t > 1) { t = 1; s = clamp01((b - c) / a); }
+        const x = rx + d1x * s - d2x * t, y = ry + d1y * s - d2y * t, z = rz + d1z * s - d2z * t;
+        closest.s = s;
+        closest.t = t;
+        closest.distance = Math.sqrt(x * x + y * y + z * z);
+      }
+
+      function updateContactPoints() {
+        for (let i = 0; i < groups.length; i++) {
+          const { bones, tip } = groups[i];
+          const points = contactPoints[i];
+          const box = contactBoxes[i];
+          box.fill(Infinity, 0, 3).fill(-Infinity, 3, 6);
+          for (let k = 0; k < 5; k++) {
+            const point = points[k];
+            if (k < 4) point.setFromMatrixPosition(bones[k].bone.matrixWorld);
+            else point.copy(tipOffset.set(0, tip, 0)).applyMatrix4(bones[3].bone.matrixWorld);
+            box[0] = Math.min(box[0], point.x); box[3] = Math.max(box[3], point.x);
+            box[1] = Math.min(box[1], point.y); box[4] = Math.max(box[4], point.y);
+            box[2] = Math.min(box[2], point.z); box[5] = Math.max(box[5], point.z);
+          }
+        }
+      }
+
+      // Visits every capsule pair from different tentacles whose surfaces are within reach.
+      function forEachContact(visit) {
+        const count = groups.length;
+        for (let i = 0; i < count; i++) {
+          const a = contactBoxes[i], ra = groups[i].radius[0];
+          for (let j = i + 1; j < count; j++) {
+            const b = contactBoxes[j], reach = ra + groups[j].radius[0];
+            if (a[0] > b[3] + reach || b[0] > a[3] + reach || a[1] > b[4] + reach ||
+                b[1] > a[4] + reach || a[2] > b[5] + reach || b[2] > a[5] + reach) continue;
+            const pi = contactPoints[i], pj = contactPoints[j];
+            for (let si = 0; si < 4; si++) {
+              for (let sj = 0; sj < 4; sj++) {
+                if (si === 0 && sj === 0) continue; // the bases share the disc
+                closestSegments(pi[si], pi[si + 1], pj[sj], pj[sj + 1]);
+                const overlap = groups[i].radius[si] + groups[j].radius[sj] - closest.distance;
+                visit(i, j, si, sj, overlap, (i * count + j) * 16 + si * 4 + sj);
+              }
+            }
+          }
+        }
+      }
+
+      // Moves the contact point on segment `segment` of tentacle `index` by `amount` along `normal`, using
+      // the minimum-norm change to the curl/swing of that joint and the joints below it.
+      function nudge(index, segment, contact, amount) {
+        const { bones } = groups[index];
+        let total = 0;
+        for (let k = 0; k <= segment; k++) {
+          const e = bones[k].bone.matrixWorld.elements;
+          lever.subVectors(contact, contactPoints[index][k]);
+          bones[k].gainCurl = axis.set(e[0], e[1], e[2]).normalize().cross(lever).dot(normal);
+          bones[k].gainSwing = axis.set(e[8], e[9], e[10]).normalize().cross(lever).dot(normal);
+          total += bones[k].gainCurl ** 2 + bones[k].gainSwing ** 2;
+        }
+        if (total < 1e-9) return;
+        const scale = amount / total;
+        for (let k = 0; k <= segment; k++) {
+          const entry = bones[k];
+          entry.fixCurl = Math.max(-FIX_LIMIT, Math.min(FIX_LIMIT, entry.fixCurl + entry.gainCurl * scale));
+          entry.fixSwing = Math.max(-FIX_LIMIT, Math.min(FIX_LIMIT, entry.fixSwing + entry.gainSwing * scale));
+        }
+      }
+
+      function resolveContacts() {
+        for (let iteration = 0; iteration < CONTACT_ITERATIONS; iteration++) {
+          for (const group of groups) group.bones[0].bone.updateMatrixWorld(true);
+          updateContactPoints();
+          let moved = false;
+          forEachContact((i, j, si, sj, overlap, slot) => {
+            const excess = overlap - contactAllowed[slot];
+            if (excess <= 0) return;
+            const pi = contactPoints[i], pj = contactPoints[j];
+            cp.lerpVectors(pi[si], pi[si + 1], closest.s);
+            cq.lerpVectors(pj[sj], pj[sj + 1], closest.t);
+            normal.subVectors(cp, cq);
+            if (normal.lengthSq() < 1e-10) normal.set(pi[0].x - pj[0].x, 0, pi[0].z - pj[0].z);
+            normal.normalize();
+            nudge(i, si, cp, excess * 0.5);
+            normal.negate();
+            nudge(j, sj, cq, excess * 0.5);
+            if (excess > CONTACT_TOLERANCE) moved = true;
+          });
+          if (!moved) break;
+          for (const group of groups) for (const entry of group.bones) poseJoint(entry);
+        }
+      }
+
+      // Per-tentacle capsule sizes from the skinned mesh, and the overlap each capsule pair
+      // already has in the rest pose (which the solver leaves alone).
+      function prepareContacts(mesh) {
+        const slotOf = new Map();
+        groups.forEach((group, i) => group.bones.forEach((entry, k) => slotOf.set(entry.bone, i * 4 + k)));
+        const inverse = groups.flatMap(group => group.bones.map(entry => entry.bone.matrixWorld.clone().invert()));
+        const samples = groups.flatMap(() => [[], [], [], []]);
+        const tips = groups.map(() => 0);
+        const { skinIndex, skinWeight } = mesh.geometry.attributes;
+        const vertex = new THREE.Vector3();
+        for (let v = 0; v < skinIndex.count; v++) {
+          let joint = 0, weight = -1;
+          for (let c = 0; c < 4; c++) {
+            if (skinWeight.getComponent(v, c) > weight) { weight = skinWeight.getComponent(v, c); joint = skinIndex.getComponent(v, c); }
+          }
+          const slot = slotOf.get(mesh.skeleton.bones[joint]);
+          if (slot === undefined) continue;
+          mesh.getVertexPosition(v, vertex).applyMatrix4(mesh.matrixWorld).applyMatrix4(inverse[slot]);
+          samples[slot].push(Math.hypot(vertex.x, vertex.z));
+          if (slot % 4 === 3) tips[slot >> 2] = Math.max(tips[slot >> 2], vertex.y);
+        }
+        const worldScale = new THREE.Vector3().setFromMatrixScale(groups[0].bones[0].bone.matrixWorld).x;
+        groups.forEach((group, i) => {
+          group.tip = tips[i];
+          group.radius = [0, 1, 2, 3].map(k => {
+            const values = samples[i * 4 + k].sort((a, b) => a - b);
+            return values[values.length >> 1] * worldScale; // median: the tube, not the flared base
+          });
+          contactPoints.push(Array.from({ length: 5 }, () => new THREE.Vector3()));
+          contactBoxes.push(new Float32Array(6));
+        });
+        updateContactPoints();
+        contactAllowed = new Float32Array(groups.length * groups.length * 16);
+        forEachContact((i, j, si, sj, overlap, slot) => { contactAllowed[slot] = Math.max(0, overlap); });
+      }
+
+      // Slow retract cycle, in seconds: open hold → close → retracted hold → reopen, looping.
+      const CYCLE_OPEN = 4;
+      const CYCLE_CLOSE = 12;
+      const CYCLE_HOLD = 2.5;
+      const CYCLE_REOPEN = 16;
+      const CYCLE_PERIOD = CYCLE_OPEN + CYCLE_CLOSE + CYCLE_HOLD + CYCLE_REOPEN;
+
+      function cycleAmount(age) {
+        let p = age % CYCLE_PERIOD;
+        if (p < CYCLE_OPEN) return 0;
+        p -= CYCLE_OPEN;
+        if (p < CYCLE_CLOSE) return ease(p / CYCLE_CLOSE);
+        p -= CYCLE_CLOSE;
+        if (p < CYCLE_HOLD) return 1;
+        p -= CYCLE_HOLD;
+        return 1 - ease(p / CYCLE_REOPEN);
+      }
+
+      function contractAmount() {
+        if (mode === 'cycle' && Number.isFinite(cycleStarted)) return cycleAmount(elapsed - cycleStarted);
+        if (!Number.isFinite(startleStarted)) return 0;
+        const age = elapsed - startleStarted;
+        if (age < 1.25) return ease(age / 1.25);
+        if (age < 2.0) return 1;
+        const recover = 1 - ease((age - 2.0) / 20.0);
+        if (recover <= 0) {
+          startleStarted = -Infinity;
+          if (mode === 'startle') {
+            mode = 'current';
+            setState('Current flow', 'traveling sine wave · still base');
+          }
+          return 0;
+        }
+        return recover;
+      }
+
+      function animatePose(dt = 0) {
+        const t = elapsed;
+        const relax = Math.exp(-dt / FIX_RELAX);
+        const follow = 1 - Math.exp(-dt / POSE_SMOOTHING);
+        const contraction = contractAmount();
+        shownContraction += (contraction - shownContraction) * follow;
+        const bathAge = t - bathStarted;
+        const bathing = bathAge >= 0 && bathAge < 2.8;
+        const bathPulse = bathing ? Math.sin(Math.PI * bathAge / 2.8) ** 0.9 : 0;
+        if (!bathing && mode === 'bath' && Number.isFinite(bathStarted)) {
+          mode = 'current';
+          setState('Current flow', 'traveling sine wave · still base');
+        }
+
+        for (const group of groups) {
+          const { angle, bones } = group;
+          const offset = angle - 0.45;
+          const sector = Math.exp(-(offset * offset) / (2 * 0.48 * 0.48));
+          const contact = bathPulse * sector;
+          for (let joint = 0; joint < bones.length; joint++) {
+            const entry = bones[joint];
+            const bone = entry.bone;
+            const rest = entry.rest;
+            const reach = [0.56, 0.72, 0.88, 1][joint] || 1;
+            const wave = waveAt(group, t, entry.jointPhase);
+            const curlFlow = wave.curl * reach;
+            const swingFlow = wave.swing * reach;
+            const partCurl = 0.62 * contact * reach;
+            const partSwing = 0.38 * contact * reach * Math.sin(angle + 0.9);
+            const curlTarget = curlFlow + partCurl - 0.38 * contraction * reach;
+            const swingTarget = swingFlow + partSwing;
+            entry.curl += (curlTarget - entry.curl) * follow;
+            entry.swing += (swingTarget * (1 - 0.4 * contraction) - entry.swing) * follow;
+            entry.fixCurl *= relax;
+            entry.fixSwing *= relax;
+            bone.scale.copy(rest.scale);
+            bone.scale.y *= 1 - 0.08 * shownContraction;
+            poseJoint(entry);
+          }
+        }
+        resolveContacts();
+      }
+
+      function fit() {
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        if (!width || !height) return;
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
+
+      function frame(now) {
+        requestAnimationFrame(frame);
+        const dt = Math.min(0.05, Math.max(0, (now - lastFrame) / 1000));
+        lastFrame = now;
+        if (!paused) elapsed += dt;
+        if (model) animatePose(paused ? 0 : dt);
+        renderer.render(scene, camera);
+      }
+
+      function setMode(next) {
+        mode = next;
+        cycleStarted = -Infinity;
+        if (next === 'current') {
+          bathStarted = -Infinity;
+          startleStarted = -Infinity;
+          setState('Current flow', 'traveling sine wave · still base');
+        } else if (next === 'bath') {
+          bathStarted = elapsed;
+          startleStarted = -Infinity;
+          setState('Clownfish bathing', 'local tentacles part and sweep back');
+        } else if (next === 'startle') {
+          bathStarted = -Infinity;
+          startleStarted = elapsed;
+          setState('Startle & retract', 'quick contraction · 20 s recovery');
+        } else if (next === 'cycle') {
+          bathStarted = -Infinity;
+          startleStarted = -Infinity;
+          cycleStarted = elapsed;
+          setState('Slow retract cycle', `flow → retract → flow · ${CYCLE_PERIOD} s loop`);
+        }
+      }
+
+      buttons.current.addEventListener('click', () => setMode('current'));
+      buttons.bath.addEventListener('click', () => setMode('bath'));
+      buttons.startle.addEventListener('click', () => setMode('startle'));
+      buttons.cycle.addEventListener('click', () => setMode('cycle'));
+      buttons.reset.addEventListener('click', () => {
+        elapsed = 0;
+        bathStarted = -Infinity;
+        startleStarted = -Infinity;
+        cycleStarted = -Infinity;
+        model.rotation.y = 0;
+        yaw = Math.atan2(3.8, 4.7);
+        mode = 'current';
+        setState('Current flow', 'traveling sine wave · still base');
+      });
+      buttons.pause.addEventListener('click', () => {
+        paused = !paused;
+        buttons.pause.textContent = paused ? 'Resume' : 'Pause';
+        setState(stateLabel.textContent, stateNote.textContent);
+      });
+      window.addEventListener('keydown', event => {
+        if (event.code === 'Space' && !event.repeat) {
+          event.preventDefault();
+          buttons.pause.click();
+        }
+        if (event.key === '1') setMode('current');
+        if (event.key === '2') setMode('bath');
+        if (event.key === '3') setMode('startle');
+        if (event.key === '4') setMode('cycle');
+      });
+      canvas.addEventListener('pointerdown', event => {
+        dragging = true;
+        previousPointerX = event.clientX;
+        canvas.setPointerCapture(event.pointerId);
+      });
+      canvas.addEventListener('pointermove', event => {
+        if (!dragging || !model) return;
+        const delta = event.clientX - previousPointerX;
+        previousPointerX = event.clientX;
+        yaw += delta * 0.008;
+        model.rotation.y = yaw - Math.atan2(3.8, 4.7);
+      });
+      canvas.addEventListener('pointerup', () => { dragging = false; });
+      canvas.addEventListener('pointercancel', () => { dragging = false; });
+      window.addEventListener('resize', fit);
+      fit();
+      requestAnimationFrame(frame);
+
+      let boneSeed = 1;
+      new GLTFLoader().load('../3d_models/anemone.glb', gltf => {
+        model = gltf.scene;
+        model.traverse(object => {
+          if (object.name === 'Cube') object.visible = false;
+          if (!object.isBone) return;
+          // GLTFLoader strips dots from object.name; the original glTF name lives in userData.name.
+          const match = (object.userData.name ?? object.name).match(/^tentacle\.(\d+)\.(\d+)$/);
+          const seed = boneSeed++;
+          if (match) {
+            const index = Number(match[1]);
+            const joint = Number(match[2]) - 1;
+            let group = groups[index];
+            if (!group) {
+              const position = object.position;
+              group = groups[index] = {
+                ...makeWave(index, position.x, position.z),
+                angle: Math.atan2(position.z, position.x),
+                bones: [],
+              };
+            }
+            group.bones[joint] = {
+              bone: object,
+              rest: {
+                quaternion: object.quaternion.clone(),
+                scale: object.scale.clone(),
+              },
+              jointPhase: joint * 1.45 + (stableUnit(seed + 21) - 0.5) * 0.08,
+              curl: 0,
+              swing: 0,
+              fixCurl: 0,
+              fixSwing: 0,
+            };
+          }
+        });
+        for (let i = 0; i < groups.length; i++) if (!groups[i]) groups[i] = null;
+        while (groups.length && groups[groups.length - 1] === null) groups.pop();
+        model.scale.setScalar(0.9);
+        scene.add(model);
+        model.updateMatrixWorld(true);
+        prepareContacts(model.getObjectByName('Anemone_Tentacles'));
+
+        const bounds = new THREE.Box3().setFromObject(model);
+        model.position.y -= bounds.min.y;
+        focus.y = (bounds.max.y - bounds.min.y) * 0.52;
+        camera.lookAt(focus);
+        for (const button of Object.values(buttons)) button.disabled = false;
+        loading.hidden = true;
+        animatePose();
+      }, undefined, cause => {
+        loading.hidden = true;
+        errorBox.hidden = false;
+        errorBox.textContent = `Could not load 3d_models/anemone.glb. Start the project server with npm start, then open /docs/anemone_preview.html. ${cause.message || ''}`;
+      });
+    </script>
+  </body>
+</html>
