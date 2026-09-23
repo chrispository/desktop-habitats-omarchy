@@ -4,6 +4,8 @@
 
 A live aquarium wallpaper for [Omarchy](https://omarchy.org), installed as an Omarchy plugin. Forked from the [Mac screensaver](https://github.com/chaseleantj/desktop-habitats) by [chaseleantj](https://github.com/chaseleantj). Choose **Riverscape**, a planted freshwater tank, or **Reefscape**, a saltwater reef. Both are rendered on your GPU with Three.js and WebGL2, sit behind your windows, and are set up from a fish icon in the top bar.
 
+**Every monitor, any rotation.** It runs on all your screens at once, whether landscape, portrait or ultrawide, and each rotated however you like. Every screen gets a tank framed for its shape. Narrow screens pan along the tank, and any screen can have its own tank and settings.
+
 ![Reefscape, a saltwater tank with clownfish around an anemone](preview.png)
 
 > **Warning:** fairly GPU intensive.
