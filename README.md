@@ -2,7 +2,7 @@
 
 [![Desktop Habitats aquarium demo](docs/images/demo.gif)](docs/videos/demo.mp4)
 
-A live aquarium wallpaper for [Omarchy](https://omarchy.org), installed as an Omarchy plugin. Choose **Riverscape**, a planted freshwater tank, or **Reefscape**, a saltwater reef. Both are rendered on your GPU with Three.js and WebGL2, sit behind your windows, and are set up from a fish icon in the top bar.
+A live aquarium wallpaper for [Omarchy](https://omarchy.org), installed as an Omarchy plugin. Forked from the [Mac screensaver](https://github.com/chaseleantj/desktop-habitats) by [chaseleantj](https://github.com/chaseleantj). Choose **Riverscape**, a planted freshwater tank, or **Reefscape**, a saltwater reef. Both are rendered on your GPU with Three.js and WebGL2, sit behind your windows, and are set up from a fish icon in the top bar.
 
 ![Reefscape, a saltwater tank with clownfish around an anemone](preview.png)
 
