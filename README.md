@@ -19,7 +19,7 @@ omarchy plugin add https://github.com/chrispository/desktop-habitats-omarchy.git
 
 The first command adds the fish to the right of your bar. `setup` installs the build dependencies (`qt6-webengine`, `layer-shell-qt`, `cmake`, `ninja`, `base-devel`), builds the wallpaper and starts it. From then on it starts with your session.
 
-The 4K textures add a lot of size (about 260 MB). If you don't plan to use Ultra quality, feel free to ask your coding agent to remove the unneeded 4K textures.
+The 4K textures add a lot of size (about 160 MB). If you don't plan to use Ultra quality, feel free to ask your coding agent to remove the unneeded 4K textures.
 
 ## The bar widget
 
