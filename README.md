@@ -17,6 +17,8 @@ The first command adds the fish to the right of your bar. `setup` installs the b
 
 ## The bar widget
 
+<img src="docs/images/panel.png" alt="The Desktop Habitats panel: screen, tank, fish, framing with the pan speed knob, and quality" width="385">
+
 Click the fish in the top bar to open the panel. Right-click it to swap tanks.
 
 - **Switch and restart** (top right): turn the wallpaper on or off, or restart it.
