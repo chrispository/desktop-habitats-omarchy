@@ -5,12 +5,12 @@
   "version": "0.1.0",
   "author": "chrispository",
   "license": "MIT",
-  "description": "Controls for the Desktop Habitats live aquarium wallpaper: tank, screens, framing and fish",
+  "description": "Live aquarium wallpaper for Omarchy, with a bar widget for the tank, fish, framing and quality on each screen",
   "kinds": [
     "bar-widget"
   ],
   "entryPoints": {
-    "barWidget": "Panel.qml"
+    "barWidget": "plugin/Panel.qml"
   },
   "barWidget": {
     "displayName": "Desktop Habitats",

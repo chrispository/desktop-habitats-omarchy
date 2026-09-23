@@ -2,9 +2,9 @@
 //
 // One layer-shell surface per screen on the `bottom` layer, which sits above Omarchy's
 // own static background (layer `background`) and below windows. Each surface holds a
-// Chromium web view showing a scene's wallpaper.html, driven through the same habitat*
-// functions the macOS host calls. Settings come from a commented JSON file that is
-// watched for changes, so an edit shows up on the desktop as soon as it is saved.
+// Chromium web view showing a scene's wallpaper.html, driven through its habitat*
+// functions. Settings come from a commented JSON file that is watched for changes, so an
+// edit shows up on the desktop as soon as it is saved.
 
 #include <LayerShellQt/window.h>
 
@@ -295,7 +295,7 @@ private:
   QString screen;
 };
 
-/// The same pointer shim the macOS host injects, so a host can move the fish without
+/// A pointer shim injected into every page, so the host can move the fish without
 /// the surface taking input.
 static const char *pointerShim = R"JS(
 window.habitatPointerCount = 0;

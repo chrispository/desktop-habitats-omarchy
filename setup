@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Finishes a Desktop Habitats install: installs the build dependencies, builds the
+# wallpaper and starts it. Safe to re-run.
+#
+# After `omarchy plugin add` (which clones this repo into the plugins folder):
+#   ~/.config/omarchy/plugins/chrispository.desktop-habitats/setup
+
+set -euo pipefail
+
+DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+command -v omarchy >/dev/null || {
+  echo "error: omarchy not found; Desktop Habitats is an Omarchy plugin." >&2
+  exit 1
+}
+
+echo "Installing build dependencies"
+omarchy pkg add qt6-webengine layer-shell-qt cmake ninja base-devel
+
+echo "Building the wallpaper"
+cmake -G Ninja -S "$DIR/linux" -B "$DIR/build/linux" -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake --build "$DIR/build/linux"
+
+"$DIR/wallpaper" restart
+
+echo
+echo "Done. Click the fish in the top bar to pick the tank, fish, framing and quality."

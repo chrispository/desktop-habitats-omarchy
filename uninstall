@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Stops the wallpaper and removes the plugin, build included. Settings in
+# ~/.config/desktop-habitats are kept.
+
+set -euo pipefail
+
+DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+"$DIR/wallpaper" stop
+omarchy plugin remove chrispository.desktop-habitats --yes
+
+echo "Uninstalled. Your settings are still in ~/.config/desktop-habitats; delete that folder to remove them too."

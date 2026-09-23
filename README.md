@@ -1,88 +1,49 @@
-# Desktop Habitats - Omarchy Port
+# Desktop Habitats
 
 [![Desktop Habitats aquarium demo](docs/images/demo.gif)](docs/videos/demo.mp4)
 
-Desktop Habitats is a live aquarium wallpaper for Omarchy and other Wayland desktops using Hyprland. Choose **Riverscape**, a planted freshwater tank, or **Reefscape**, a saltwater tank. Both scenes are rendered locally with Three.js and WebGL2.
+A live aquarium wallpaper for [Omarchy](https://omarchy.org), installed as an Omarchy plugin. Choose **Riverscape**, a planted freshwater tank, or **Reefscape**, a saltwater reef. Both are rendered on your GPU with Three.js and WebGL2, sit behind your windows, and are set up from a fish icon in the top bar.
 
-![Reefscape, a saltwater tank with clownfish around an anemone](docs/images/reefscape-wide.png)
+![Reefscape, a saltwater tank with clownfish around an anemone](preview.png)
 
-## Configuration
-
-The wallpaper reads `~/.config/desktop-habitats/config.jsonc`. It creates this file with defaults the first time it starts. The file uses JSONC, so comments are allowed. Changes are picked up while the wallpaper is running.
-
-```jsonc
-{
-  "environment": "riverscape", // "riverscape" or "reefscape"
-  "quality": "balanced",      // "eco", "balanced", "detail" or "ultra"
-  "resolution": "auto",        // "auto", "native" or a scale from 0.25 to 2
-  "fps": 30,                   // 1 to 60
-  "framing": "auto",           // "auto", "landscape" or "portrait"
-  "pan": "auto",               // "auto" sweeps end to end, or -1 (left end) to 1 (right end)
-  "panSpeed": 5,               // auto's speed, 1 to 10 (5: 2 min round trip, 9: 30 s)
-  "fish": {
-    "riverscape": { "tetras": 24 },                              // 1-48
-    "reefscape": { "clownfish": 3, "chromis": 9, "anthias": 7 }  // 0-4, 0-18, 0-14
-  },
-  "monitors": {
-    // Per-output overrides; use `hyprctl monitors` to find output names.
-    // "DP-2": { "environment": "reefscape", "framing": "portrait" },
-    // "HDMI-A-1": { "enabled": false }
-  }
-}
-```
-
-`auto` framing chooses a composition to fit each screen's shape. `pan` moves a narrow (portrait) screen's view along the tank: `auto` sweeps it slowly from one end to the other and back, and a number holds it in place. It has no effect on a screen already wide enough to show the whole tank. Fish counts, pan, pan speed and fps apply to the running tank: new fish swim in and leavers go, with no restart. Changing the tank, quality, resolution or framing reloads it. `auto` resolution scales the render to fill the screen within the selected quality profile; `native` renders at screen resolution. You can override settings for a single run with command-line options such as `--env reefscape`. See all options with `./build/linux/desktop-habitats --help`.
-
-## Run on Omarchy (Hyprland)
-
-The Linux host in `linux/` uses Qt6 WebEngine and LayerShellQt. On Omarchy, install the build dependencies with:
+## Install
 
 ```sh
-sudo pacman -S --needed qt6-webengine layer-shell-qt cmake ninja base-devel
+omarchy plugin add https://github.com/chrispository/desktop-habitats-omarchy.git --enable
+~/.config/omarchy/plugins/chrispository.desktop-habitats/setup
 ```
 
-Then build from the project folder:
+The first command adds the fish to the right of your bar. `setup` installs the build dependencies (`qt6-webengine`, `layer-shell-qt`, `cmake`, `ninja`, `base-devel`), builds the wallpaper and starts it. From then on it starts with your session.
+
+## The bar widget
+
+Click the fish in the top bar to open the panel. Right-click it to swap tanks.
+
+- **Switch and restart** (top right): turn the wallpaper on or off, or restart it.
+- **Screen**: change all screens at once, or pick one (such as `DP-2`) to switch it off or give it its own settings. **Match all screens** clears them.
+- **Tank**: Riverscape or Reefscape.
+- **Fish**: how many of each kind. They swim in or leave without a restart.
+- **Framing**: *Auto* fits the tank to the screen's shape; *Wide* and *Tall* force one. **Pan** moves the view along the tank on a screen too narrow to show all of it. *Sweep* travels end to end, at a speed set with the dial. *Fixed* holds it where you put the slider.
+- **Quality**: Eco, Balanced, Detail or Ultra, and the frame rate.
+- **Edit settings file** opens `~/.config/desktop-habitats/config.jsonc`, the file the panel writes. Changes made by hand show up right away, and your comments are kept.
+
+For keybindings, the widget takes `omarchy-shell chrispository.desktop-habitats <command>`, where the command is `toggle`, `swapTank`, `setTank reefscape`, `setPan auto` (or -1 to 1), `setPanSpeed 1-10`, `start`, `restart` or `stop`. To start the wallpaper yourself instead of at login, add `"autostart": false` to the widget's entry in `~/.config/omarchy/shell.json`.
+
+## New graphics
+
+- Reefscape's clownfish now live in a rigged host anemone, modelled in Blender with 389 bones. Every tentacle ripples in a wave across the crown, leans with the current, and parts around a clownfish bathing in it.
+- **Ultra** quality renders at 60 fps and twice the pixel density. It uses 4K bark and cave rock in Riverscape and sharper shadows in Reefscape.
+- Riverscape's broadleaf plants are smaller and flatter, and sit better in the planting.
+
+## Update and uninstall
 
 ```sh
-cmake -G Ninja -S linux -B build/linux -DCMAKE_BUILD_TYPE=RelWithDebInfo
-cmake --build build/linux
+omarchy plugin update chrispository.desktop-habitats        # the wallpaper rebuilds itself on its next start
+~/.config/omarchy/plugins/chrispository.desktop-habitats/uninstall
 ```
 
-Start or restart the wallpaper from the project folder:
-
-```sh
-pkill -f '^\./build/linux/desktop-habitats'; setsid -f ./build/linux/desktop-habitats > build/live.log 2>&1
-```
-
-The app creates a wallpaper layer for each enabled display and loads scenes directly from this project folder. Scene edits take effect when the app restarts. Its log is written to `build/live.log`.
-
-This is a manual, project-local install; it does not add a login autostart or system service. To stop it and remove the built app:
-
-```sh
-pkill -f '^\./build/linux/desktop-habitats'
-rm -rf build/linux
-```
-
-Your settings in `~/.config/desktop-habitats/config.jsonc` are kept. To remove them too, delete `~/.config/desktop-habitats`.
-
-### Bar widget
-
-`omarchy-plugin/` is an Omarchy bar widget for choosing the tank, fish, framing and quality for each screen from the top bar. See [its README](omarchy-plugin/README.md) to install it.
-
-## Try it in a browser
-
-With Node.js installed, run this from the project folder:
-
-```sh
-npm start
-```
-
-Open [the local preview](http://127.0.0.1:8080). No package installation is needed; Three.js is included in the repository. Use `PORT=8081 npm start` if port 8080 is busy, and Ctrl+C to stop the server. The browser preview supports clicking the water to feed fish, pointer interaction, and the on-screen controls. Press **Space** to pause or resume, **F** for fullscreen, and **H** to hide or show controls while the scene has focus.
-
-The **Quality** control offers Eco (20 fps), Balanced (30 fps), and Detail (60 fps). These are frame-rate caps; lower profiles also reduce rendering resolution. Serve the page over HTTP; opening `index.html` directly will not load its JavaScript modules.
+Uninstalling stops the wallpaper and removes the plugin. Your settings stay in `~/.config/desktop-habitats`.
 
 ## Credits and license
 
-Desktop Habitats is [MIT licensed](LICENSE). Three.js 0.180.0 is bundled under its [MIT license](vendor/THREE-LICENSE.txt).
-
-Riverscape's sand textures come from Poly Haven under [CC0](https://polyhaven.com/license): [Sand 01](https://polyhaven.com/a/sand_01). Its Bark maps are from Fab's [Grassland African Tree Bark Wood Rough 04](https://www.fab.com/listings/fe5a998a-ca25-46c1-9420-f8039065b7e3); the two 2K Cave Rock sets are from [Cave Rock](https://www.fab.com/listings/4de392b5-2e2c-4025-8667-ae8a95f2293f) and [Cave Rock](https://www.fab.com/listings/e24f6893-548a-45d0-8277-2fa16d67f25d). The scene uses each set's base color, normal, and roughness maps. Reefscape's rock mesh, pore maps, coral texture, and organism meshes are procedural, generated by the scripts in `tools/`.
+[MIT licensed](LICENSE). Three.js 0.180.0 is bundled under its [MIT license](vendor/THREE-LICENSE.txt). Riverscape's sand is [Sand 01](https://polyhaven.com/a/sand_01) from Poly Haven ([CC0](https://polyhaven.com/license)). Its bark is Fab's [Grassland African Tree Bark Wood Rough 04](https://www.fab.com/listings/fe5a998a-ca25-46c1-9420-f8039065b7e3) and its rock is Fab's Cave Rock ([one](https://www.fab.com/listings/4de392b5-2e2c-4025-8667-ae8a95f2293f), [two](https://www.fab.com/listings/e24f6893-548a-45d0-8277-2fa16d67f25d)). Reefscape's rock, textures and creatures are procedural, generated by the scripts in `tools/` and `3d_models/`.

@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Starts, restarts or stops the Desktop Habitats wallpaper built in this folder. The bar
+# widget calls this; so can a keybinding.
+#
+#   ./wallpaper start     start it unless it is already running
+#   ./wallpaper restart
+#   ./wallpaper stop
+
+set -euo pipefail
+
+DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+BIN="$DIR/build/linux/desktop-habitats"
+
+stop() {
+  local pids
+  pids=$(pidof desktop-habitats) || return 0
+  kill $pids
+  for _ in {1..50}; do
+    pidof desktop-habitats >/dev/null || return 0
+    sleep 0.1
+  done
+  kill -9 $pids 2>/dev/null || true
+}
+
+# Every screen's bar runs its own copy of the widget, and each asks for a start when the
+# shell loads; the lock lets only one of them through at a time.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/desktop-habitats.lock"
+flock 9
+
+case "${1:-start}" in
+start) pidof desktop-habitats >/dev/null && exit 0 ;;
+restart) stop ;;
+stop)
+  stop
+  exit 0
+  ;;
+*)
+  echo "usage: $0 [start|restart|stop]" >&2
+  exit 2
+  ;;
+esac
+
+# After `omarchy plugin update` the host's source may be newer than its build.
+if [[ -d $DIR/build/linux && -n $(find "$DIR/linux" -newer "$BIN" -print -quit 2>/dev/null) ]]; then
+  cmake --build "$DIR/build/linux" >"$DIR/build/build.log" 2>&1 || true
+fi
+if [[ ! -x $BIN ]]; then
+  echo "Desktop Habitats is not built yet; run $DIR/setup" >&2
+  exit 1
+fi
+
+cd "$DIR"
+setsid -f "$BIN" --root "$DIR" >"$DIR/build/live.log" 2>&1 9>&-
