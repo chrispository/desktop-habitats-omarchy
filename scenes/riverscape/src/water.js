@@ -110,14 +110,40 @@ export const surfaceLightGLSL = /* glsl */ `
       + 0.024 * sin(t * 0.145 + p.x * 0.23 + p.z * 0.12)
       + 0.012 * sin(t * 0.073 - p.x * 0.16 + p.z * 0.21 + 1.7);
   }
+  float riverCausticFocus(float determinant) {
+    // The bounded inverse-area response brightens ray folds without allowing one
+    // pixel-sized caustic to overwhelm the much larger illuminated surface.
+    float area = max(abs(determinant), 0.075);
+    return clamp(0.70 + 0.36 * inversesqrt(area), 0.62, 2.35);
+  }
   vec3 waterLight(vec3 p, float t) {
     float depth = clamp(${SURFACE_Y.toFixed(1)} - p.y, 0.5, 10.0);
-    float laplacian =
-      0.0110 * sin(dot(p.xz, vec2(3.1, 1.9)) - t * 3.4) +
-      0.0100 * sin(dot(p.xz, vec2(-2.4, 4.2)) - t * 4.1 + 1.3) +
-      0.0075 * sin(dot(p.xz, vec2(5.3, -2.6)) - t * 5.2 + 2.9) +
-      0.0060 * sin(dot(p.xz, vec2(-4.1, -6.0)) - t * 6.3 + 0.7);
-    float focus = 1.0 / max(0.45, 1.0 - 0.25 * depth * laplacian * 4.0);
+    // Trace the lamp back to the rippled surface before evaluating its ray map. The
+    // denser wave set makes smaller, overlapping cells, while the Hessian determinant
+    // concentrates their light on the bed and lower plants.
+    vec2 q = p.xz + depth * vec2(-3.0, 4.4) / 11.5;
+    float hxx = 0.0, hzz = 0.0, hxz = 0.0;
+    float c;
+    vec2 d = normalize(vec2(3.1, 1.9));
+    c = -0.024 * sin(dot(q, vec2(3.1, 1.9)) - t * 3.4);
+    hxx += c * d.x * d.x; hzz += c * d.y * d.y; hxz += c * d.x * d.y;
+    d = normalize(vec2(-2.4, 4.2));
+    c = -0.022 * sin(dot(q, vec2(-2.4, 4.2)) - t * 4.1 + 1.3);
+    hxx += c * d.x * d.x; hzz += c * d.y * d.y; hxz += c * d.x * d.y;
+    d = normalize(vec2(5.3, -2.6));
+    c = -0.017 * sin(dot(q, vec2(5.3, -2.6)) - t * 5.2 + 2.9);
+    hxx += c * d.x * d.x; hzz += c * d.y * d.y; hxz += c * d.x * d.y;
+    d = normalize(vec2(-4.1, -6.0));
+    c = -0.014 * sin(dot(q, vec2(-4.1, -6.0)) - t * 6.3 + 0.7);
+    hxx += c * d.x * d.x; hzz += c * d.y * d.y; hxz += c * d.x * d.y;
+    d = normalize(vec2(7.3, 2.2));
+    c = -0.008 * sin(dot(q, vec2(7.3, 2.2)) - t * 7.0 + 2.1);
+    hxx += c * d.x * d.x; hzz += c * d.y * d.y; hxz += c * d.x * d.y;
+    float armR = depth * 1.2440, armG = depth * 1.2488, armB = depth * 1.2536;
+    float detR = (1.0 - armR * hxx) * (1.0 - armR * hzz) - armR * armR * hxz * hxz;
+    float detG = (1.0 - armG * hxx) * (1.0 - armG * hzz) - armG * armG * hxz * hxz;
+    float detB = (1.0 - armB * hxx) * (1.0 - armB * hzz) - armB * armB * hxz * hxz;
+    vec3 focus = vec3(riverCausticFocus(detR), riverCausticFocus(detG), riverCausticFocus(detB));
     vec3 absorption = exp(-vec3(0.020, 0.008, 0.012) * depth);
     return focus * absorption;
   }

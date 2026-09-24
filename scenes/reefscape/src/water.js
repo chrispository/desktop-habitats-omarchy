@@ -68,21 +68,30 @@ vec2 reefResponse(vec3 p,float t,float tau){
 // there. The Hessian of the surface is what a ripple does to a bundle of rays: where its
 // determinant with the lens arm falls to zero the bundle has folded onto itself, and that
 // fold is the bright glitter line on the bed.
-const lens=(waves,arm)=>`
+const lens=(waves)=>`
   float hxx=0.,hzz=0.,hxz=0.;
   ${waves.map(w=>`{float curvature=-${n(w.a*w.k*w.k)}*sin(${n(w.k)}*dot(q,vec2(${n(w.dx)},${n(w.dz)}))-${n(w.omega)}*t+${n(w.phase)});hxx+=curvature*${n(w.dx*w.dx)};hzz+=curvature*${n(w.dz*w.dz)};hxz+=curvature*${n(w.dx*w.dz)};}`).join('\n')}
-  float determinant=(1.-${arm}*hxx)*(1.-${arm}*hzz)-${arm}*${arm}*hxz*hxz;`;
+`;
 const surfaceCrossing=`float depth=clamp(${n(h)}-p.y,.02,9.);vec2 q=p.xz+depth*vec2(${n(LAMP.x/LAMP.y)},${n(LAMP.z/LAMP.y)});`;
 export const causticGLSL=`
+float reefCausticFocus(float determinant){
+  // The ray map's area change is the light concentration. A small floor keeps a
+  // geometric fold finite; the reciprocal square root gives it a bright, narrow crest.
+  float area=max(abs(determinant),.075);
+  return clamp(.70+.36*inversesqrt(area),.62,2.35);
+}
 vec3 reefIrradiance(vec3 p,float t){
   ${surfaceCrossing}
   t*=${n(RIPPLE_TIME)};
-  // Surface ripples are small, but a point-like LED focuses them into glitter lines on the bed;
-  // the factor stands in for that concentration.
-  ${lens(WAVES,'(depth*1.2488)')}
-  // Glitter lines: the fold where the ray map loses rank is a thin bright band, the rest a
-  // mild dimming, as point-like LEDs draw on a tank bed.
-  float focus=.84+4.40*pow(clamp(1.-abs(determinant)*1.35,0.,1.),3.4);
+  // Clearwater's refracted-grid caustics measure how much receiving area a patch of
+  // surface light covers. This analytic ray-map Jacobian does the same for our wave set.
+  // Close red, green and blue bending scales add the weak dispersion of a real water path.
+  ${lens(WAVES)}
+  float armR=depth*1.2440,armG=depth*1.2488,armB=depth*1.2536;
+  float determinantR=(1.-armR*hxx)*(1.-armR*hzz)-armR*armR*hxz*hxz;
+  float determinantG=(1.-armG*hxx)*(1.-armG*hzz)-armG*armG*hxz*hxz;
+  float determinantB=(1.-armB*hxx)*(1.-armB*hzz)-armB*armB*hxz*hxz;
+  vec3 focus=vec3(reefCausticFocus(determinantR),reefCausticFocus(determinantG),reefCausticFocus(determinantB));
   // The bank sits over the front half of the tank, so the rear hardscape is lit at a slant
   // and through more water: it falls off toward the back wall instead of meeting it lit.
   float reach=.46+.54*smoothstep(-4.6,-.6,p.z);
