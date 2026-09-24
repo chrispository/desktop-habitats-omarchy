@@ -26,7 +26,7 @@ export const ROCKS=[
 // short stub of a column stands down in the rock below — and radius the crown's reach; the
 // clownfish goals, their shelter point and the non-host avoidance all key off these. lean
 // tips the axis (x and z, as a share of its height) so the disc faces the viewer a little.
-export const HOST={x:-3.95,y:3.20,z:1.0,radius:1.25,lean:[.10,.30]};
+export const HOST={x:-3.95,y:3.00,z:1.0,radius:1.25,lean:[.10,.30]};
 // The host comes first. Small specimens use an explicit compact crown, not a shrunken
 // host. They sit low on free rock, with independent leans. y is the authored disc height;
 // the compact form settles its disc a little lower to sit into the rock shoulder.
