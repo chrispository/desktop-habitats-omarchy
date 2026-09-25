@@ -269,6 +269,8 @@ Panel {
     bar: root.bar
     text: root.glyph
     slotSize: Style.bar.iconSlot
+    // nf-md-fish sits small in its em box; this brings its ink up to the other bar icons.
+    fontSize: Style.bar.iconFont * 1.2
     tooltipText: ""
     onPressed: function(b) {
       if (b === Qt.RightButton) root.swapTank()
